@@ -136,84 +136,52 @@ function initApp(user) {
 }
 
 // --- CONTROLE DE ABAS ---
+// Usa delegação de evento no documento para garantir que funciona sempre
+document.addEventListener('click', (e) => {
+    const navItem = e.target.closest('.nav-item[data-tab]');
+    if (navItem) {
+        const tabId = navItem.getAttribute('data-tab');
+        if (tabId) switchTab(tabId);
+    }
+});
+
 function setupTabListeners() {
-    const navItems = document.querySelectorAll(".nav-item");
-    navItems.forEach(item => {
-        item.addEventListener("click", () => {
-            const tabId = item.getAttribute("data-tab");
-            if (tabId) switchTab(tabId);
-        });
-    });
-
-    const ctaBtn = document.getElementById("header-cta-btn");
-    if (ctaBtn) {
-        ctaBtn.addEventListener("click", () => {
-            const tabId = ctaBtn.getAttribute("data-tab") || "draft-tab";
-            switchTab(tabId);
-        });
-    }
-
     const logoBtn = document.getElementById("logo-btn");
-    if (logoBtn) {
-        logoBtn.addEventListener("click", () => switchTab("dashboard-tab"));
-    }
+    if (logoBtn) logoBtn.addEventListener("click", () => switchTab("dashboard-tab"));
+    const ctaBtn = document.getElementById("header-cta-btn");
+    if (ctaBtn) ctaBtn.addEventListener("click", () => {
+        switchTab(ctaBtn.getAttribute("data-tab") || "draft-tab");
+    });
 }
 
 function switchTab(tabId) {
     activeTab = tabId;
-    
+
     // Atualiza estado visual no menu lateral
-    const navItems = document.querySelectorAll(".nav-item");
-    navItems.forEach(item => {
-        if (item.getAttribute("data-tab") === tabId) {
-            item.classList.add("active");
-        } else {
-            item.classList.remove("active");
-        }
+    document.querySelectorAll(".nav-item").forEach(item => {
+        item.classList.toggle("active", item.getAttribute("data-tab") === tabId);
     });
 
     // Exibe a aba correspondente
-    const tabContents = document.querySelectorAll(".tab-content");
-    tabContents.forEach(content => {
-        if (content.getAttribute("id") === tabId) {
-            content.classList.add("active");
-        } else {
-            content.classList.remove("active");
-        }
+    document.querySelectorAll(".tab-content").forEach(content => {
+        content.classList.toggle("active", content.id === tabId);
     });
 
-    // Customizações adicionais de cabeçalho
+    // Customizações de cabeçalho
     const pageTitle = document.getElementById("page-title");
     const ctaBtn = document.getElementById("header-cta-btn");
 
-    if (tabId === "dashboard-tab") {
-        pageTitle.innerText = "Painel da Liga";
-        ctaBtn.style.display = "flex";
-        ctaBtn.innerHTML = `<i class="fa-solid fa-trophy"></i> Ir para o Draft`;
-        ctaBtn.setAttribute("data-tab", "draft-tab");
-    } else if (tabId === "draft-tab") {
-        pageTitle.innerText = "Draft ao Vivo";
-        ctaBtn.style.display = "flex";
-        ctaBtn.innerHTML = `<i class="fa-solid fa-people-group"></i> Ver Meu Time`;
-        ctaBtn.setAttribute("data-tab", "team-tab");
-        // Reinicia o timer se o draft estiver rodando
-        if (!draftFinished && !draftTimerInterval) {
-            startDraftTimer();
-        }
-    } else if (tabId === "team-tab") {
-        pageTitle.innerText = "Minha Escalação";
-        ctaBtn.style.display = "flex";
-        ctaBtn.innerHTML = `<i class="fa-solid fa-shop"></i> Mercado de Atletas`;
-        ctaBtn.setAttribute("data-tab", "market-tab");
-    } else if (tabId === "matchup-tab") {
-        pageTitle.innerText = "Confronto Direto";
-        ctaBtn.style.display = "none";
-    } else if (tabId === "market-tab") {
-        pageTitle.innerText = "Mercado de Jogadores";
-        ctaBtn.style.display = "flex";
-        ctaBtn.innerHTML = `<i class="fa-solid fa-chart-simple"></i> Ver Confronto`;
-        ctaBtn.setAttribute("data-tab", "matchup-tab");
-    }
+    const titles = {
+        "dashboard-tab": "Painel da Liga",
+        "draft-tab": "Draft ao Vivo",
+        "team-tab": "Minha Escalação",
+        "matchup-tab": "Confronto Direto",
+        "market-tab": "Mercado",
+        "trades-tab": "Trocas",
+        "config-tab": "Configurações da Liga"
+    };
+    if (pageTitle) pageTitle.innerText = titles[tabId] || "";
+    if (ctaBtn) ctaBtn.style.display = tabId === "matchup-tab" ? "none" : "flex";
 }
 
 // --- HEADER ACTIONS ---
