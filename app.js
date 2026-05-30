@@ -2,76 +2,19 @@
 let players = JSON.parse(JSON.stringify(PLAYERS_DATABASE));
 
 // --- ESTADO DO JOGO ---
-let currentManagerName = "Meu Time";
-let currentManagerAvatar = "M";
+const LEAGUE_TEAMS = [
+    { id: 'user', name: "Você (Parças FC)", short: "PAR", avatar: "P", points: 0.0, wins: 0, losses: 0, color: "var(--neon-blue)" },
+    { id: 'botA', name: "Galácticos BR", short: "GAL", avatar: "G", points: 0.0, wins: 0, losses: 0, color: "var(--neon-purple)" },
+    { id: 'botB', name: "Mitadores FC", short: "MIT", avatar: "M", points: 0.0, wins: 0, losses: 0, color: "var(--neon-orange)" },
+    { id: 'botC', name: "Chapéu Cruzado", short: "CHA", avatar: "C", points: 0.0, wins: 0, losses: 0, color: "var(--neon-green)" }
+];
+
 let activeTab = "dashboard-tab";
-let userBudget = ORCAMENTO_INICIAL;
+let userBudget = ORCAMENTO_INICIAL; // Orçamento em D$ para o restante da temporada
 let isGamesSimulated = false;
+
+// Esquema Tático Ativo
 let activeFormation = "4-3-3";
-
-// LEAGUE_TEAMS mantido como array vazio para compatibilidade com código legado
-const LEAGUE_TEAMS = [];
-
-// =============================================
-// NAVEGAÇÃO ENTRE ABAS — CENTRALIZADA
-// Roda logo que o DOM carrega, independente do login
-// =============================================
-document.addEventListener('DOMContentLoaded', () => {
-    // Navegação por clique nos itens do menu lateral
-    document.querySelectorAll('.nav-item[data-tab]').forEach(item => {
-        item.addEventListener('click', () => {
-            const tabId = item.getAttribute('data-tab');
-            if (tabId) switchTab(tabId);
-        });
-    });
-
-    // Logo volta ao dashboard
-    const logoBtn = document.getElementById('logo-btn');
-    if (logoBtn) logoBtn.addEventListener('click', () => switchTab('dashboard-tab'));
-
-    // Botão CTA do header
-    const ctaBtn = document.getElementById('header-cta-btn');
-    if (ctaBtn) ctaBtn.addEventListener('click', () => {
-        const tabId = ctaBtn.getAttribute('data-tab') || 'draft-tab';
-        switchTab(tabId);
-    });
-});
-
-function switchTab(tabId) {
-    activeTab = tabId;
-
-    // Ativa item do menu
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.classList.toggle('active', item.getAttribute('data-tab') === tabId);
-    });
-
-    // Mostra aba correta
-    document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.toggle('active', content.id === tabId);
-    });
-
-    // Título da página
-    const titles = {
-        'dashboard-tab': 'Painel da Liga',
-        'draft-tab': 'Draft ao Vivo',
-        'team-tab': 'Minha Escalação',
-        'matchup-tab': 'Confronto Direto',
-        'market-tab': 'Mercado',
-        'trades-tab': 'Trocas',
-        'config-tab': 'Configurações da Liga'
-    };
-    const pageTitle = document.getElementById('page-title');
-    if (pageTitle) pageTitle.innerText = titles[tabId] || '';
-
-    // Inicializa módulos ao mudar de aba
-    const user = window._currentUser;
-    if (!user) return;
-    if (tabId === 'draft-tab' && typeof Draft !== 'undefined') Draft.init(user);
-    if (tabId === 'dashboard-tab' && typeof Dashboard !== 'undefined') Dashboard.init(user);
-    if (tabId === 'config-tab' && typeof LeagueConfig !== 'undefined') LeagueConfig.init(user);
-    if (tabId === 'market-tab' && typeof Waiver !== 'undefined') Waiver.init(user);
-    if (tabId === 'trades-tab' && typeof Trades !== 'undefined') Trades.init(user);
-}
 
 // Mapa de Formações Táticas Suportadas
 const FORMATIONS = {
@@ -157,24 +100,39 @@ let draftTimerSeconds = 90;
 let draftTimerInterval = null;
 let draftFinished = false;
 
+// Mock de Adversários (Times montados para o Matchup)
+let botALineup = [];
+
 // --- HISTÓRICO DE MURAL (DASHBOARD) ---
-let activityFeed = [];
+let activityFeed = [
+    { type: "system", text: "A temporada <strong>Liga dos Parças 2026</strong> foi criada oficialmente!", time: "Hoje, 10:00" },
+    { type: "system", text: `O mercado de transferências está aberto com orçamento de <strong>${MOEDA_LABEL} ${ORCAMENTO_INICIAL.toFixed(2)}</strong>.`, time: "Hoje, 10:05" },
+    { type: "draft", text: "A sala de <strong>Draft ao Vivo</strong> já está disponível. Faça suas escolhas!", time: "Hoje, 10:10" }
+];
 
 // --- HISTÓRICO DE MENSAGENS DO CHAT ---
-let chatMessages = [];
+let chatMessages = [
+    { author: "Galácticos BR", text: "E aí galera, preparados para perderem feio esse ano? Meu rascunho de draft tá insano!", avatar: "G", color: "var(--neon-purple)", isUser: false, time: "11:20" },
+    { author: "Mitadores FC", text: "Fale menos e mitre mais kkkkk. Ano passado você ficou em último", avatar: "M", color: "var(--neon-orange)", isUser: false, time: "11:22" },
+    { author: "Chapéu Cruzado", text: "Só digo uma coisa: Pedro no Flamengo vai voar essa rodada. Quem tiver a primeira escolha do draft pega ele", avatar: "C", color: "var(--neon-green)", isUser: false, time: "11:25" }
+];
 
-// NÃO inicializa automaticamente — aguarda o login pelo auth.js
-// initApp é chamado por auth.js após autenticação
+// initApp chamado pelo auth.js após login
+// Variáveis de estado do manager atual
+let currentManagerName = "Meu Time";
+let currentManagerAvatar = "M";
 
 function initApp(user) {
+    setupTabListeners();
     setupChat();
+    setupDraft();
     setupMarket();
     setupLineup();
     setupMatchup();
     setupHeaderActions();
 
-    // Busca nome real do manager
-    if (user) {
+    // Busca nome real do manager no banco
+    if (user && window.supabaseClient) {
         window.supabaseClient
             .from('managers')
             .select('team_name, avatar_letter, budget')
@@ -183,37 +141,100 @@ function initApp(user) {
             .then(({ data }) => {
                 if (data) {
                     currentManagerName = data.team_name || 'Meu Time';
-                    currentManagerAvatar = data.avatar_letter || currentManagerName.charAt(0).toUpperCase();
+                    currentManagerAvatar = (data.avatar_letter || currentManagerName.charAt(0)).toUpperCase();
                     userBudget = data.budget ?? ORCAMENTO_INICIAL;
                     const el = document.getElementById('team-name-display');
                     if (el) el.textContent = currentManagerName;
                     const budgetEl = document.getElementById('header-budget-badge');
-                    if (budgetEl) budgetEl.textContent = `D$${userBudget}`;
+                    if (budgetEl) budgetEl.textContent = 'D$' + userBudget;
                 }
             });
     }
 
+    // Renders iniciais
     renderMarket();
     renderPitch();
+    renderMatchup();
     renderChat();
+}
+
+// --- CONTROLE DE ABAS ---
+function setupTabListeners() {
+    const navItems = document.querySelectorAll(".nav-item");
+    navItems.forEach(item => {
+        item.addEventListener("click", () => {
+            const tabId = item.getAttribute("data-tab");
+            if (tabId) switchTab(tabId);
+        });
+    });
+
+    const ctaBtn = document.getElementById("header-cta-btn");
+    if (ctaBtn) {
+        ctaBtn.addEventListener("click", () => {
+            const tabId = ctaBtn.getAttribute("data-tab");
+            if (tabId) switchTab(tabId);
+        });
+    }
+
+    const logoBtn = document.getElementById("logo-btn");
+    if (logoBtn) {
+        logoBtn.addEventListener("click", () => switchTab("dashboard-tab"));
+    }
+}
+
+function switchTab(tabId) {
+    activeTab = tabId;
+    
+    // Atualiza estado visual no menu lateral
+    const navItems = document.querySelectorAll(".nav-item");
+    navItems.forEach(item => {
+        if (item.getAttribute("data-tab") === tabId) {
+            item.classList.add("active");
+        } else {
+            item.classList.remove("active");
+        }
+    });
+
+    // Exibe a aba correspondente
+    const tabContents = document.querySelectorAll(".tab-content");
+    tabContents.forEach(content => {
+        if (content.getAttribute("id") === tabId) {
+            content.classList.add("active");
+        } else {
+            content.classList.remove("active");
+        }
+    });
+
+    // Customizações de cabeçalho
+    const pageTitle = document.getElementById("page-title");
+    const ctaBtn = document.getElementById("header-cta-btn");
+    const titles = {
+        "dashboard-tab": "Painel da Liga",
+        "draft-tab": "Draft ao Vivo",
+        "team-tab": "Minha Escalação",
+        "matchup-tab": "Confronto Direto",
+        "market-tab": "Mercado",
+        "trades-tab": "Trocas",
+        "config-tab": "Configurações da Liga"
+    };
+    if (pageTitle) pageTitle.innerText = titles[tabId] || "";
+    if (ctaBtn) ctaBtn.style.display = (tabId === "matchup-tab") ? "none" : "flex";
+
+    // Inicializa módulos ao trocar de aba
+    const user = window._currentUser;
+    if (user) {
+        if (tabId === "draft-tab" && typeof Draft !== "undefined") Draft.init(user);
+        if (tabId === "dashboard-tab" && typeof Dashboard !== "undefined") Dashboard.init(user);
+        if (tabId === "config-tab" && typeof LeagueConfig !== "undefined") LeagueConfig.init(user);
+        if (tabId === "market-tab" && typeof Waiver !== "undefined") Waiver.init(user);
+        if (tabId === "trades-tab" && typeof Trades !== "undefined") Trades.init(user);
+    }
 }
 
 // --- HEADER ACTIONS ---
 function setupHeaderActions() {
     const simBtn = document.getElementById("simulate-round-btn");
-    if (simBtn) {
-        simBtn.addEventListener("click", () => {
-            simulateRoundPoints();
-        });
-    }
-
-    const ctaBtn = document.getElementById("header-cta-btn");
-    if (ctaBtn) {
-        ctaBtn.addEventListener("click", () => {
-            const tab = ctaBtn.getAttribute("data-tab") || "draft-tab";
-            switchTab(tab);
-        });
-    }
+    if (simBtn) simBtn.addEventListener("click", () => simulateRoundPoints());
 }
 
 function simulateRoundPoints() {
@@ -386,11 +407,42 @@ function addActivityLog(type, text) {
 
 // --- TAB: DASHBOARD RENDERING ---
 function renderDashboard() {
-    // Dashboard real gerenciado pelo dashboard.js
-    // Esta função é mantida para compatibilidade com chamadas antigas
-}
+    const feedList = document.getElementById("activity-feed");
+    feedList.innerHTML = "";
+    
+    activityFeed.forEach(item => {
+        const row = document.createElement("div");
+        row.className = "feed-item";
+        
+        row.innerHTML = `
+            <div class="feed-meta">
+                <span class="feed-badge ${item.type}">${item.type}</span>
+                <span class="feed-text">${item.text}</span>
+            </div>
+            <span class="feed-time">${item.time}</span>
+        `;
+        feedList.appendChild(row);
+    });
 
-// renderDashboard real gerenciado pelo dashboard.js
+    const standingsBody = document.getElementById("standings-tbody");
+    standingsBody.innerHTML = "";
+
+    LEAGUE_TEAMS.forEach((team, idx) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>
+                <div class="standing-team">
+                    <span style="font-weight:700; width:15px; color: var(--text-muted);">${idx+1}</span>
+                    <div class="team-avatar" style="background-color: ${team.color}; color: #fff;">${team.avatar}</div>
+                    <span>${team.name}</span>
+                </div>
+            </td>
+            <td class="standing-record">${team.wins} - ${team.losses}</td>
+            <td class="standing-points">${team.points.toFixed(2)}</td>
+        `;
+        standingsBody.appendChild(tr);
+    });
+}
 
 // --- CHAT SYSTEM ---
 function setupChat() {
@@ -399,41 +451,43 @@ function setupChat() {
     chatForm.addEventListener("submit", (e) => {
         e.preventDefault();
         const input = document.getElementById("chat-input-msg");
-        const msgText = input?.value.trim();
+        const msgText = input.value.trim();
         if (msgText) {
-            addChatMessage(currentManagerName, msgText, currentManagerAvatar, "var(--neon-blue)", true);
+            addChatMessage(currentManagerName, msgText, "P", "var(--neon-blue)", true);
             input.value = "";
+            
+            // Simular resposta automática de zoeira de algum bot
             triggerBotChatReply(msgText);
         }
     });
 
+    // Enviar Provocação (Trash Talk)
     const trashBtn = document.getElementById("chat-trash-talk-btn");
-    if (trashBtn) {
-        trashBtn.addEventListener("click", () => {
-            const taunts = [
-                "Esquece, esse ano a taça é minha! Podem chorar no vestiário já 😂",
-                "Acabei de fechar uma contratação cirúrgica no mercado, meu time tá voando baixo!",
-                "Quem escalou o Yuri Alberto tá rezando pra ele não errar o gol sem goleiro kkkkk",
-                "Cadê as estatísticas? Meu time tá com projeção de pontuação recorde!"
-            ];
-            const randomTaunt = taunts[Math.floor(Math.random() * taunts.length)];
-            addChatMessage(currentManagerName, randomTaunt, currentManagerAvatar, "var(--neon-blue)", true);
-            triggerBotChatReply(randomTaunt);
-        });
-    }
+    trashBtn.addEventListener("click", () => {
+        const taunts = [
+            "Esquece, esse ano a taça é minha! Podem chorar no vestiário já 😂",
+            "Acabei de fechar uma contratação cirúrgica no mercado, meu time tá voando baixo!",
+            "Galácticos BR, tá preparado pra passar vergonha no confronto direto?",
+            "Quem escalou o Yuri Alberto tá rezando pra ele não errar o gol sem goleiro kkkkk",
+            "Cadê as estatísticas? Meu time tá com projeção de pontuação recorde!"
+        ];
+        const randomTaunt = taunts[Math.floor(Math.random() * taunts.length)];
+        addChatMessage(currentManagerName, randomTaunt, "P", "var(--neon-blue)", true);
+        triggerBotChatReply(randomTaunt);
+    });
 
+    // Botão de GIF (simula o anexo de meme no Sleeper)
     const gifBtn = document.getElementById("chat-gif-btn");
-    if (gifBtn) {
-        gifBtn.addEventListener("click", () => {
-            const gifUrls = [
-                "https://media.giphy.com/media/l0HlIDtV6zvnC7f4k/giphy.gif",
-                "https://media.giphy.com/media/t3s3XSxOJZEas/giphy.gif",
-            ];
-            const randomGif = gifUrls[Math.floor(Math.random() * gifUrls.length)];
-            addChatMessageWithGif(currentManagerName, "Esse é o sentimento da rodada!", randomGif, currentManagerAvatar, "var(--neon-blue)", true);
-            triggerBotChatReply("gif");
-        });
-    }
+    gifBtn.addEventListener("click", () => {
+        const gifUrls = [
+            "https://media.giphy.com/media/l0HlIDtV6zvnC7f4k/giphy.gif", // Campo vibrante / futebol
+            "https://media.giphy.com/media/t3s3XSxOJZEas/giphy.gif",
+            "https://media.giphy.com/media/26AHONQ79FdWZhAI0/giphy.gif"
+        ];
+        const randomGif = gifUrls[Math.floor(Math.random() * gifUrls.length)];
+        addChatMessageWithGif(currentManagerName, "Esse é o sentimento da rodada!", randomGif, "P", "var(--neon-blue)", true);
+        triggerBotChatReply("gif");
+    });
 }
 
 function addChatMessage(author, text, avatar, color, isUser) {
@@ -515,7 +569,46 @@ function triggerBotChatReply(userMsg) {
 
 // --- DRAFT ROOM SIMULATOR ---
 function setupDraft() {
-    // Draft gerenciado pelo draft.js — esta função mantida para compatibilidade
+    // Inicializa a grade do Draft de forma visual
+    // Snake Board: 4 Times, 6 Rodadas
+    // Times: P(User), G(botA), M(botB), C(botC)
+    // Inicializa picks livres
+    draftBoardPicks = [];
+    let pickNum = 1;
+    for (let round = 1; round <= DRAFT_ROUNDS; round++) {
+        let roundPicks = [];
+        let isEvenRound = (round % 2 === 0);
+        
+        // No snake draft, rounds pares invertem a ordem
+        let order = [0, 1, 2, 3]; // Índices dos times
+        if (isEvenRound) {
+            order.reverse();
+        }
+
+        for (let i = 0; i < order.length; i++) {
+            const teamIndex = order[i];
+            draftBoardPicks.push({
+                pickIndex: pickNum - 1,
+                round: round,
+                pickNumber: pickNum,
+                teamId: LEAGUE_TEAMS[teamIndex].id,
+                teamName: LEAGUE_TEAMS[teamIndex].name,
+                teamColor: LEAGUE_TEAMS[teamIndex].color,
+                teamAvatar: LEAGUE_TEAMS[teamIndex].avatar,
+                player: null
+            });
+            pickNum++;
+        }
+    }
+
+    renderDraftBoard();
+    renderDraftPool();
+
+    // Filtro de Busca no Pool de Draft
+    const searchInput = document.getElementById("draft-player-search");
+    searchInput.addEventListener("input", () => {
+        renderDraftPool(searchInput.value);
+    });
 }
 
 function renderDraftBoard() {
@@ -776,33 +869,45 @@ function autoInsertIntoLineup(player) {
 
 // --- MARKET AND LINEUP MANAGEMENT ---
 function setupMarket() {
+    // Filtro por Posição (Pills)
+    const pills = document.querySelectorAll("#position-filter-container .filter-pill");
+    pills.forEach(pill => {
+        pill.addEventListener("click", () => {
+            pills.forEach(p => p.classList.remove("active"));
+            pill.classList.add("active");
+            
+            const selectedPos = pill.getAttribute("data-pos");
+            filterMarket(selectedPos, document.getElementById("market-player-search").value);
+        });
+    });
+
+    // Filtro por barra de busca
     const searchInput = document.getElementById("market-player-search");
-    const posSelect = document.getElementById("market-pos-filter");
-    const clubSelect = document.getElementById("market-club-filter");
-
-    const refresh = () => filterMarket(
-        posSelect?.value || "TODOS",
-        searchInput?.value || "",
-        clubSelect?.value || "TODOS"
-    );
-
-    searchInput?.addEventListener("input", refresh);
-    posSelect?.addEventListener("change", refresh);
-    clubSelect?.addEventListener("change", refresh);
+    searchInput.addEventListener("input", () => {
+        const activePill = document.querySelector("#position-filter-container .filter-pill.active");
+        const pos = activePill ? activePill.getAttribute("data-pos") : "TODOS";
+        filterMarket(pos, searchInput.value);
+    });
 }
 
-function filterMarket(position = "TODOS", searchVal = "", club = "TODOS") {
-    let filtered = PLAYERS_DATABASE;
+function filterMarket(position = "TODOS", searchVal = "") {
+    let filtered = players;
 
-    if (searchVal) filtered = filtered.filter(p => p.name.toLowerCase().includes(searchVal.toLowerCase()));
-    if (position !== "TODOS") filtered = filtered.filter(p => p.position === position);
-    if (club !== "TODOS") filtered = filtered.filter(p => p.club === club);
+    // Filtro de busca textual
+    if (searchVal) {
+        filtered = filtered.filter(p => p.name.toLowerCase().includes(searchVal.toLowerCase()));
+    }
+
+    // Filtro de posição
+    if (position !== "TODOS") {
+        filtered = filtered.filter(p => p.position === position);
+    }
 
     renderMarketList(filtered);
 }
 
 function renderMarket() {
-    filterMarket("TODOS", "", "TODOS");
+    filterMarket("TODOS", "");
 }
 
 function renderMarketList(playerList) {
@@ -830,13 +935,8 @@ function renderMarketList(playerList) {
         });
 
         let buttonHtml = "";
-        const draftFinished = typeof Draft !== 'undefined' && Draft.state.draftState?.is_finished;
         if (isHired) {
             buttonHtml = `<button class="market-action-btn added" onclick="sellPlayerFromMarket(${player.id})">Remover</button>`;
-        } else if (!draftFinished) {
-            buttonHtml = `<button class="market-action-btn" disabled style="opacity:0.4; cursor:not-allowed;" title="Disponível após o draft">
-                <i class="fa-solid fa-lock" style="font-size:10px;"></i> Draft
-            </button>`;
         } else {
             buttonHtml = `<button class="market-action-btn" onclick="buyPlayerFromMarket(${player.id})">Contratar</button>`;
         }
@@ -973,35 +1073,31 @@ function sellPlayerFromMarket(playerId) {
 
 function setupLineup() {
     const resetBtn = document.getElementById("reset-team-btn");
-    if (resetBtn) {
-        resetBtn.addEventListener("click", () => {
-            let confirmReset = confirm("Deseja realmente remover todos os jogadores de sua escalação tática?");
-            if (confirmReset) {
-                Object.keys(lineup).forEach(pos => {
-                    lineup[pos] = lineup[pos].map(p => {
-                        if (p) {
-                            const dbPlayer = players.find(x => x.id === p.id);
-                            if (dbPlayer) dbPlayer.status = "disponivel";
-                        }
-                        return null;
-                    });
+    if (resetBtn) resetBtn.addEventListener("click", () => {
+        let confirmReset = confirm("Deseja realmente remover todos os jogadores de sua escalação tática?");
+        if (confirmReset) {
+            Object.keys(lineup).forEach(pos => {
+                lineup[pos] = lineup[pos].map(p => {
+                    if (p) {
+                        const dbPlayer = players.find(x => x.id === p.id);
+                        if (dbPlayer) dbPlayer.status = "disponivel";
+                    }
+                    return null;
                 });
-                userBudget = ORCAMENTO_INICIAL;
-                updateLineupStats();
-                renderMarket();
-                renderPitch();
-                renderMatchup();
-                addActivityLog("system", "Você desescalou todos os atletas de sua equipe.");
-            }
-        });
-    }
+            });
+            userBudget = ORCAMENTO_INICIAL;
+            updateLineupStats();
+            renderMarket();
+            renderPitch();
+            renderMatchup();
+            addActivityLog("system", "Você desescalou todos os atletas de sua equipe.");
+        }
+    });
 
     const formationSelect = document.getElementById("formation-select");
-    if (formationSelect) {
-        formationSelect.addEventListener("change", (e) => {
-            changeFormation(e.target.value);
-        });
-    }
+    if (formationSelect) formationSelect.addEventListener("change", (e) => {
+        changeFormation(e.target.value);
+    });
 }
 
 function changeFormation(newFormation) {
@@ -1112,42 +1208,24 @@ function renderPitch() {
     });
 
     // Render reservas
-    const reservesContainer = document.getElementById("bench-slots") || (() => {
-        const c = document.createElement("div");
-        c.id = "reserves-container";
-        c.className = "reserves-grid";
-        pitchGrid.parentElement.appendChild(c);
-        return c;
-    })();
-    reservesContainer.innerHTML = "";
+    const reservesContainer = document.createElement("div");
+    reservesContainer.id = "reserves-container";
+    reservesContainer.className = "reserves-grid";
     lineup.RESERVAS.forEach((player, idx) => {
         const slotEl = generateSlotHtml("RESERVAS", idx, player, `Reserva ${idx + 1}`);
-        slotEl.className = "bench-player-slot";
-        const badge = slotEl.querySelector(".player-slot-badge");
-        if (badge) badge.className = "bench-slot-badge";
-        const name = slotEl.querySelector(".player-slot-name");
-        if (name) name.className = "bench-slot-name";
         reservesContainer.appendChild(slotEl);
     });
+    pitchGrid.parentElement.appendChild(reservesContainer);
 
     // Render lesões
-    const injuriesContainer = document.getElementById("injured-slots") || (() => {
-        const c = document.createElement("div");
-        c.id = "injuries-container";
-        c.className = "injuries-grid";
-        pitchGrid.parentElement.appendChild(c);
-        return c;
-    })();
-    injuriesContainer.innerHTML = "";
+    const injuriesContainer = document.createElement("div");
+    injuriesContainer.id = "injuries-container";
+    injuriesContainer.className = "injuries-grid";
     lineup.LESOES.forEach((player, idx) => {
         const slotEl = generateSlotHtml("LESOES", idx, player, `Lesão ${idx + 1}`);
-        slotEl.className = "bench-player-slot";
-        const badge = slotEl.querySelector(".player-slot-badge");
-        if (badge) badge.className = "bench-slot-badge";
-        const name = slotEl.querySelector(".player-slot-name");
-        if (name) name.className = "bench-slot-name";
         injuriesContainer.appendChild(slotEl);
     });
+    pitchGrid.parentElement.appendChild(injuriesContainer);
 
     updateLineupStats();
 }
