@@ -83,13 +83,23 @@ const Draft = {
 
     // --- Retorna o slot atual da pick ---
     getCurrentSlot() {
+        // Se draft não foi iniciado pelo comissário, retorna null
+        if (!Draft.isDraftActive()) return null;
         const idx = Draft.state.draftState?.current_pick_index || 0;
         const order = Draft.getPickOrder();
         return order[idx] || null;
     },
 
+    // --- Verifica se o draft foi oficialmente iniciado ---
+    isDraftActive() {
+        const ds = Draft.state.draftState;
+        if (!ds) return false;
+        return ds.draft_status === 'active' && !ds.is_finished;
+    },
+
     // --- Verifica se é a vez do usuário logado ---
     isMyTurn() {
+        if (!Draft.isDraftActive()) return false;
         const slot = Draft.getCurrentSlot();
         return slot?.managerId === Draft.state.currentUser?.id;
     },
@@ -272,18 +282,32 @@ const Draft = {
 
     // --- Header do draft ---
     renderHeader() {
-        const slot = Draft.getCurrentSlot();
         const ticker = document.getElementById('draft-ticker-msg');
         const title = document.getElementById('current-pick-announcement');
         const roundBadge = document.getElementById('draft-round-badge');
         const pickBadge = document.getElementById('draft-pick-badge');
 
-        if (!slot || Draft.state.draftState?.is_finished) {
+        // Draft encerrado
+        if (Draft.state.draftState?.is_finished) {
             if (ticker) ticker.textContent = 'DRAFT ENCERRADO';
             if (title) title.textContent = 'Todos os jogadores foram escolhidos!';
+            if (roundBadge) roundBadge.textContent = '—';
+            if (pickBadge) pickBadge.textContent = '—';
             return;
         }
 
+        // Draft ainda não iniciado
+        if (!Draft.isDraftActive()) {
+            if (ticker) ticker.textContent = 'AGUARDANDO INÍCIO';
+            if (title) title.innerHTML = '<span style="color:var(--text-muted)">O comissário ainda não iniciou o draft</span>';
+            if (roundBadge) roundBadge.textContent = '—';
+            if (pickBadge) pickBadge.textContent = '—';
+            return;
+        }
+
+        // Draft ativo
+        const slot = Draft.getCurrentSlot();
+        if (!slot) return;
         const isMe = Draft.isMyTurn();
         const managerName = slot.manager?.team_name || `Time ${slot.managerId?.slice(0,6)}`;
 
@@ -449,10 +473,12 @@ const Draft = {
             .update({
                 current_pick_index: 0,
                 is_finished: false,
+                draft_status: 'active',
                 timer_expires_at: expiresAt,
                 updated_at: new Date().toISOString()
             })
             .eq('id', 1);
+        await Draft.loadDraftState();
         Draft.render();
     }
 };

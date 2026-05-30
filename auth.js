@@ -225,6 +225,13 @@ document.addEventListener('DOMContentLoaded', () => {
         logoutBtn.addEventListener('click', () => Auth.signOut());
     }
 
+    // Botão de perfil
+    document.getElementById('open-profile-btn')?.addEventListener('click', () => {
+        window.supabaseClient.auth.getUser().then(({ data }) => {
+            if (data?.user) Profile.open(data.user);
+        });
+    });
+
     // Inicializa autenticação
     Auth.init();
 });
