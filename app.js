@@ -150,22 +150,22 @@ function setupTabListeners() {
     navItems.forEach(item => {
         item.addEventListener("click", () => {
             const tabId = item.getAttribute("data-tab");
-            if (tabId) {
-                switchTab(tabId);
-            }
+            if (tabId) switchTab(tabId);
         });
     });
 
     const ctaBtn = document.getElementById("header-cta-btn");
-    ctaBtn.addEventListener("click", () => {
-        const tabId = ctaBtn.getAttribute("data-tab");
-        switchTab(tabId);
-    });
+    if (ctaBtn) {
+        ctaBtn.addEventListener("click", () => {
+            const tabId = ctaBtn.getAttribute("data-tab") || "draft-tab";
+            switchTab(tabId);
+        });
+    }
 
     const logoBtn = document.getElementById("logo-btn");
-    logoBtn.addEventListener("click", () => {
-        switchTab("dashboard-tab");
-    });
+    if (logoBtn) {
+        logoBtn.addEventListener("click", () => switchTab("dashboard-tab"));
+    }
 }
 
 function switchTab(tabId) {
@@ -423,16 +423,46 @@ const LEAGUE_TEAMS = [];
 // --- CHAT SYSTEM ---
 function setupChat() {
     const chatForm = document.getElementById("chat-form");
+    if (!chatForm) return;
     chatForm.addEventListener("submit", (e) => {
         e.preventDefault();
         const input = document.getElementById("chat-input-msg");
-        const msgText = input.value.trim();
+        const msgText = input?.value.trim();
         if (msgText) {
             addChatMessage(currentManagerName, msgText, currentManagerAvatar, "var(--neon-blue)", true);
             input.value = "";
             triggerBotChatReply(msgText);
         }
     });
+
+    const trashBtn = document.getElementById("chat-trash-talk-btn");
+    if (trashBtn) {
+        trashBtn.addEventListener("click", () => {
+            const taunts = [
+                "Esquece, esse ano a taça é minha! Podem chorar no vestiário já 😂",
+                "Acabei de fechar uma contratação cirúrgica no mercado, meu time tá voando baixo!",
+                "Quem escalou o Yuri Alberto tá rezando pra ele não errar o gol sem goleiro kkkkk",
+                "Cadê as estatísticas? Meu time tá com projeção de pontuação recorde!"
+            ];
+            const randomTaunt = taunts[Math.floor(Math.random() * taunts.length)];
+            addChatMessage(currentManagerName, randomTaunt, currentManagerAvatar, "var(--neon-blue)", true);
+            triggerBotChatReply(randomTaunt);
+        });
+    }
+
+    const gifBtn = document.getElementById("chat-gif-btn");
+    if (gifBtn) {
+        gifBtn.addEventListener("click", () => {
+            const gifUrls = [
+                "https://media.giphy.com/media/l0HlIDtV6zvnC7f4k/giphy.gif",
+                "https://media.giphy.com/media/t3s3XSxOJZEas/giphy.gif",
+            ];
+            const randomGif = gifUrls[Math.floor(Math.random() * gifUrls.length)];
+            addChatMessageWithGif(currentManagerName, "Esse é o sentimento da rodada!", randomGif, currentManagerAvatar, "var(--neon-blue)", true);
+            triggerBotChatReply("gif");
+        });
+    }
+}
 
     // Enviar Provocação (Trash Talk)
     const trashBtn = document.getElementById("chat-trash-talk-btn");
@@ -542,46 +572,7 @@ function triggerBotChatReply(userMsg) {
 
 // --- DRAFT ROOM SIMULATOR ---
 function setupDraft() {
-    // Inicializa a grade do Draft de forma visual
-    // Snake Board: 4 Times, 6 Rodadas
-    // Times: P(User), G(botA), M(botB), C(botC)
-    // Inicializa picks livres
-    draftBoardPicks = [];
-    let pickNum = 1;
-    for (let round = 1; round <= DRAFT_ROUNDS; round++) {
-        let roundPicks = [];
-        let isEvenRound = (round % 2 === 0);
-        
-        // No snake draft, rounds pares invertem a ordem
-        let order = [0, 1, 2, 3]; // Índices dos times
-        if (isEvenRound) {
-            order.reverse();
-        }
-
-        for (let i = 0; i < order.length; i++) {
-            const teamIndex = order[i];
-            draftBoardPicks.push({
-                pickIndex: pickNum - 1,
-                round: round,
-                pickNumber: pickNum,
-                teamId: LEAGUE_TEAMS[teamIndex].id,
-                teamName: LEAGUE_TEAMS[teamIndex].name,
-                teamColor: LEAGUE_TEAMS[teamIndex].color,
-                teamAvatar: LEAGUE_TEAMS[teamIndex].avatar,
-                player: null
-            });
-            pickNum++;
-        }
-    }
-
-    renderDraftBoard();
-    renderDraftPool();
-
-    // Filtro de Busca no Pool de Draft
-    const searchInput = document.getElementById("draft-player-search");
-    searchInput.addEventListener("input", () => {
-        renderDraftPool(searchInput.value);
-    });
+    // Draft gerenciado pelo draft.js — esta função mantida para compatibilidade
 }
 
 function renderDraftBoard() {
