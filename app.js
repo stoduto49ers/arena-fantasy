@@ -464,35 +464,6 @@ function setupChat() {
     }
 }
 
-    // Enviar Provocação (Trash Talk)
-    const trashBtn = document.getElementById("chat-trash-talk-btn");
-    trashBtn.addEventListener("click", () => {
-        const taunts = [
-            "Esquece, esse ano a taça é minha! Podem chorar no vestiário já 😂",
-            "Acabei de fechar uma contratação cirúrgica no mercado, meu time tá voando baixo!",
-            "Galácticos BR, tá preparado pra passar vergonha no confronto direto?",
-            "Quem escalou o Yuri Alberto tá rezando pra ele não errar o gol sem goleiro kkkkk",
-            "Cadê as estatísticas? Meu time tá com projeção de pontuação recorde!"
-        ];
-        const randomTaunt = taunts[Math.floor(Math.random() * taunts.length)];
-        addChatMessage(currentManagerName, randomTaunt, "P", "var(--neon-blue)", true);
-        triggerBotChatReply(randomTaunt);
-    });
-
-    // Botão de GIF (simula o anexo de meme no Sleeper)
-    const gifBtn = document.getElementById("chat-gif-btn");
-    gifBtn.addEventListener("click", () => {
-        const gifUrls = [
-            "https://media.giphy.com/media/l0HlIDtV6zvnC7f4k/giphy.gif", // Campo vibrante / futebol
-            "https://media.giphy.com/media/t3s3XSxOJZEas/giphy.gif",
-            "https://media.giphy.com/media/26AHONQ79FdWZhAI0/giphy.gif"
-        ];
-        const randomGif = gifUrls[Math.floor(Math.random() * gifUrls.length)];
-        addChatMessageWithGif(currentManagerName, "Esse é o sentimento da rodada!", randomGif, "P", "var(--neon-blue)", true);
-        triggerBotChatReply("gif");
-    });
-}
-
 function addChatMessage(author, text, avatar, color, isUser) {
     const now = new Date();
     const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -1030,31 +1001,35 @@ function sellPlayerFromMarket(playerId) {
 
 function setupLineup() {
     const resetBtn = document.getElementById("reset-team-btn");
-    resetBtn.addEventListener("click", () => {
-        let confirmReset = confirm("Deseja realmente remover todos os jogadores de sua escalação tática?");
-        if (confirmReset) {
-            Object.keys(lineup).forEach(pos => {
-                lineup[pos] = lineup[pos].map(p => {
-                    if (p) {
-                        const dbPlayer = players.find(x => x.id === p.id);
-                        if (dbPlayer) dbPlayer.status = "disponivel";
-                    }
-                    return null;
+    if (resetBtn) {
+        resetBtn.addEventListener("click", () => {
+            let confirmReset = confirm("Deseja realmente remover todos os jogadores de sua escalação tática?");
+            if (confirmReset) {
+                Object.keys(lineup).forEach(pos => {
+                    lineup[pos] = lineup[pos].map(p => {
+                        if (p) {
+                            const dbPlayer = players.find(x => x.id === p.id);
+                            if (dbPlayer) dbPlayer.status = "disponivel";
+                        }
+                        return null;
+                    });
                 });
-            });
-            userBudget = ORCAMENTO_INICIAL;
-            updateLineupStats();
-            renderMarket();
-            renderPitch();
-            renderMatchup();
-            addActivityLog("system", "Você desescalou todos os atletas de sua equipe.");
-        }
-    });
+                userBudget = ORCAMENTO_INICIAL;
+                updateLineupStats();
+                renderMarket();
+                renderPitch();
+                renderMatchup();
+                addActivityLog("system", "Você desescalou todos os atletas de sua equipe.");
+            }
+        });
+    }
 
     const formationSelect = document.getElementById("formation-select");
-    formationSelect.addEventListener("change", (e) => {
-        changeFormation(e.target.value);
-    });
+    if (formationSelect) {
+        formationSelect.addEventListener("change", (e) => {
+            changeFormation(e.target.value);
+        });
+    }
 }
 
 function changeFormation(newFormation) {
