@@ -183,12 +183,10 @@
             <header class="main-header">
                 <div class="header-title-container">
                     <h1 class="header-title" id="page-title">Painel da Liga</h1>
-                    <span class="header-subtitle" id="league-round">Rodada 1 (Brasileirão)</span>
+                    <span class="header-subtitle" id="league-round">Brasileirão 2026</span>
                 </div>
                 <div class="header-actions">
-                    <button class="action-btn" id="simulate-round-btn">
-                        <i class="fa-solid fa-play"></i> Simular Jogos
-                    </button>
+                    <span class="budget-badge" id="header-budget-badge" title="Seu saldo de Dinheiros">D$1000</span>
                     <button class="action-btn primary" id="header-cta-btn" data-tab="draft-tab">
                         <i class="fa-solid fa-trophy"></i> Ir para o Draft
                     </button>
@@ -200,39 +198,63 @@
                 
                 <!-- --- TAB: DASHBOARD --- -->
                 <section class="tab-content active" id="dashboard-tab">
+
+                    <!-- Banner -->
                     <div class="dashboard-banner">
                         <div class="banner-text">
-                            <h2>Liga dos Parças (Brasileirão)</h2>
-                            <p>O Draft está aberto! Monte sua estratégia, analise as estatísticas dos clubes do Campeonato Brasileiro e escale a equipe perfeita para faturar o título da temporada.</p>
+                            <h2 id="dashboard-league-name">Arena Fantasy</h2>
+                            <p id="dashboard-league-desc">Carregando...</p>
                         </div>
-                        <button class="action-btn primary" onclick="switchTab('draft-tab')">Entrar no Draft</button>
+                        <button class="action-btn primary" id="dashboard-banner-btn" onclick="switchTab('draft-tab')">Entrar no Draft</button>
                     </div>
-                    
+
                     <div class="dashboard-grid">
-                        <!-- Activity Feed / Mural -->
-                        <div class="glass-panel feed-section">
-                            <h3><i class="fa-solid fa-newspaper" style="color: var(--neon-blue);"></i> Mural de Atividades da Liga</h3>
-                            <div class="feed-list" id="activity-feed">
-                                <!-- Dynamically populated by JS -->
+
+                        <!-- Meu Time -->
+                        <div class="glass-panel" style="grid-column: 1 / -1;">
+                            <h3><i class="fa-solid fa-shield-halved" style="color:var(--neon-blue);"></i> Meu Time</h3>
+                            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:16px; margin-top:16px;">
+                                <div class="dash-stat-box">
+                                    <div class="dash-stat-label">Time</div>
+                                    <div class="dash-stat-value" id="dash-my-team-name">—</div>
+                                </div>
+                                <div class="dash-stat-box">
+                                    <div class="dash-stat-label">Campeonato</div>
+                                    <div class="dash-stat-value" id="dash-my-record">0V - 0D</div>
+                                </div>
+                                <div class="dash-stat-box">
+                                    <div class="dash-stat-label">Pontos Totais</div>
+                                    <div class="dash-stat-value highlight" id="dash-my-points">0.00 pts</div>
+                                </div>
+                                <div class="dash-stat-box">
+                                    <div class="dash-stat-label">Elenco</div>
+                                    <div class="dash-stat-value" id="dash-my-picks">0 jogadores</div>
+                                </div>
                             </div>
+                            <div style="margin-top:12px; display:flex; gap:6px; flex-wrap:wrap;" id="dash-pos-breakdown"></div>
                         </div>
-                        
-                        <!-- Standings / Tabela -->
+
+                        <!-- Próximo Confronto -->
+                        <div class="glass-panel">
+                            <h3><i class="fa-solid fa-swords" style="color:var(--neon-orange);"></i> Próximo Confronto</h3>
+                            <div id="dash-next-matchup" style="margin-top:16px;"></div>
+                        </div>
+
+                        <!-- Classificação -->
                         <div class="glass-panel standings-section">
-                            <h3><i class="fa-solid fa-ranking-star" style="color: var(--neon-green);"></i> Classificação Geral</h3>
+                            <h3><i class="fa-solid fa-ranking-star" style="color:var(--neon-green);"></i> Classificação Geral</h3>
                             <table class="standings-table">
                                 <thead>
                                     <tr>
                                         <th>Pos / Time</th>
-                                        <th style="text-align: right;">V-D</th>
-                                        <th style="text-align: right;">PTS</th>
+                                        <th style="text-align:right;">V-D</th>
+                                        <th style="text-align:right;">PTS</th>
                                     </tr>
                                 </thead>
-                                <tbody id="standings-tbody">
-                                    <!-- Dynamically populated by JS -->
-                                </tbody>
+                                <tbody id="standings-tbody"></tbody>
                             </table>
                         </div>
+
                     </div>
                 </section>
                 
@@ -885,6 +907,7 @@
     <script src="players.js"></script>
     <script src="supabase.js"></script>
     <script src="auth.js"></script>
+    <script src="dashboard.js"></script>
     <script src="draft.js"></script>
     <script src="league-config.js"></script>
     <script src="waiver.js"></script>

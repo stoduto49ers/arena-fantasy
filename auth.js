@@ -30,6 +30,8 @@ const Auth = {
         Auth.hideAuthScreen();
         // Inicializa o app principal
         if (typeof initApp === 'function') initApp(user);
+        // Inicializa o dashboard
+        if (typeof Dashboard !== 'undefined') Dashboard.init(user);
         // Inicializa o draft
         if (typeof Draft !== 'undefined') Draft.init(user);
 
@@ -37,6 +39,13 @@ const Auth = {
         document.querySelectorAll('.nav-item[data-tab="draft-tab"]').forEach(el => {
             el.addEventListener('click', () => {
                 if (typeof Draft !== 'undefined') Draft.init(user);
+            });
+        });
+
+        // Reinicializa o dashboard ao clicar na aba
+        document.querySelectorAll('.nav-item[data-tab="dashboard-tab"]').forEach(el => {
+            el.addEventListener('click', () => {
+                if (typeof Dashboard !== 'undefined') Dashboard.init(user);
             });
         });
 

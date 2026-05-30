@@ -2235,3 +2235,70 @@ body {
     line-height: 1.6;
     max-width: 360px;
 }
+
+
+/* =============================================
+   DASHBOARD REAL
+   ============================================= */
+
+.dash-stat-box {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    padding: 14px 16px;
+}
+
+.dash-stat-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+}
+
+.dash-stat-value {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.dash-stat-value.highlight {
+    color: var(--neon-green);
+}
+
+.pos-pill {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+}
+
+.pos-pill.pos-gol { background: rgba(255,200,0,0.15); color: #ffc800; }
+.pos-pill.pos-zag { background: rgba(0,242,254,0.1); color: var(--neon-blue); }
+.pos-pill.pos-lat { background: rgba(0,255,135,0.1); color: var(--neon-green); }
+.pos-pill.pos-mei { background: rgba(168,85,247,0.15); color: #a855f7; }
+.pos-pill.pos-ata { background: rgba(255,71,87,0.1); color: var(--neon-red); }
+
+/* Saldo no header */
+.budget-badge {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--neon-green);
+    background: rgba(0,255,135,0.08);
+    border: 1px solid rgba(0,255,135,0.2);
+    border-radius: 20px;
+    padding: 5px 12px;
+}
+
+/* Dashboard grid ajustado */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+@media (max-width: 900px) {
+    .dashboard-grid { grid-template-columns: 1fr; }
+}
