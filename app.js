@@ -2,12 +2,14 @@
 let players = JSON.parse(JSON.stringify(PLAYERS_DATABASE));
 
 // --- ESTADO DO JOGO ---
-const LEAGUE_TEAMS = [
-    { id: 'user', name: "Você (Parças FC)", short: "PAR", avatar: "P", points: 0.0, wins: 0, losses: 0, color: "var(--neon-blue)" },
-    { id: 'botA', name: "Galácticos BR", short: "GAL", avatar: "G", points: 0.0, wins: 0, losses: 0, color: "var(--neon-purple)" },
-    { id: 'botB', name: "Mitadores FC", short: "MIT", avatar: "M", points: 0.0, wins: 0, losses: 0, color: "var(--neon-orange)" },
-    { id: 'botC', name: "Chapéu Cruzado", short: "CHA", avatar: "C", points: 0.0, wins: 0, losses: 0, color: "var(--neon-green)" }
-];
+// Nome e dados do manager atual (preenchidos após login)
+let currentManagerName = "Meu Time";
+let currentManagerAvatar = "M";
+
+let activeTab = "dashboard-tab";
+let userBudget = ORCAMENTO_INICIAL;
+let isGamesSimulated = false;
+let activeFormation = "4-3-3";
 
 let activeTab = "dashboard-tab";
 let userBudget = ORCAMENTO_INICIAL; // Orçamento em D$ para o restante da temporada
@@ -100,59 +102,45 @@ let draftTimerSeconds = 90;
 let draftTimerInterval = null;
 let draftFinished = false;
 
-// Mock de Adversários (Times montados para o Matchup)
-let botALineup = [];
-
 // --- HISTÓRICO DE MURAL (DASHBOARD) ---
-let activityFeed = [
-    { type: "system", text: "A temporada <strong>Liga dos Parças 2026</strong> foi criada oficialmente!", time: "Hoje, 10:00" },
-    { type: "system", text: `O mercado de transferências está aberto com orçamento de <strong>${MOEDA_LABEL} ${ORCAMENTO_INICIAL.toFixed(2)}</strong>.`, time: "Hoje, 10:05" },
-    { type: "draft", text: "A sala de <strong>Draft ao Vivo</strong> já está disponível. Faça suas escolhas!", time: "Hoje, 10:10" }
-];
+let activityFeed = [];
 
 // --- HISTÓRICO DE MENSAGENS DO CHAT ---
-let chatMessages = [
-    { author: "Galácticos BR", text: "E aí galera, preparados para perderem feio esse ano? Meu rascunho de draft tá insano!", avatar: "G", color: "var(--neon-purple)", isUser: false, time: "11:20" },
-    { author: "Mitadores FC", text: "Fale menos e mitre mais kkkkk. Ano passado você ficou em último", avatar: "M", color: "var(--neon-orange)", isUser: false, time: "11:22" },
-    { author: "Chapéu Cruzado", text: "Só digo uma coisa: Pedro no Flamengo vai voar essa rodada. Quem tiver a primeira escolha do draft pega ele", avatar: "C", color: "var(--neon-green)", isUser: false, time: "11:25" }
-];
+let chatMessages = [];
 
-// --- BOTÕES E ELEMENTOS DO DOM ---
-if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initApp);
-} else {
-    initApp();
-}
+// NÃO inicializa automaticamente — aguarda o login pelo auth.js
+// initApp é chamado por auth.js após autenticação
 
 function initApp(user) {
     setupTabListeners();
     setupChat();
-    setupDraft();
     setupMarket();
     setupLineup();
     setupMatchup();
     setupHeaderActions();
-    
-    // Exibe nome do time real se logado
+
+    // Busca nome real do manager
     if (user) {
         window.supabaseClient
             .from('managers')
-            .select('team_name')
+            .select('team_name, avatar_letter, budget')
             .eq('id', user.id)
             .single()
             .then(({ data }) => {
-                if (data?.team_name) {
+                if (data) {
+                    currentManagerName = data.team_name || 'Meu Time';
+                    currentManagerAvatar = data.avatar_letter || currentManagerName.charAt(0).toUpperCase();
+                    userBudget = data.budget ?? ORCAMENTO_INICIAL;
                     const el = document.getElementById('team-name-display');
-                    if (el) el.textContent = data.team_name;
+                    if (el) el.textContent = currentManagerName;
+                    const budgetEl = document.getElementById('header-budget-badge');
+                    if (budgetEl) budgetEl.textContent = `D$${userBudget}`;
                 }
             });
     }
 
-    // Renders iniciais
-    renderDashboard();
     renderMarket();
     renderPitch();
-    renderMatchup();
     renderChat();
 }
 
@@ -237,12 +225,22 @@ function switchTab(tabId) {
     }
 }
 
-// --- HEADER ACTIONS: SIMULAÇÃO E OUTROS ---
+// --- HEADER ACTIONS ---
 function setupHeaderActions() {
     const simBtn = document.getElementById("simulate-round-btn");
-    simBtn.addEventListener("click", () => {
-        simulateRoundPoints();
-    });
+    if (simBtn) {
+        simBtn.addEventListener("click", () => {
+            simulateRoundPoints();
+        });
+    }
+
+    const ctaBtn = document.getElementById("header-cta-btn");
+    if (ctaBtn) {
+        ctaBtn.addEventListener("click", () => {
+            const tab = ctaBtn.getAttribute("data-tab") || "draft-tab";
+            switchTab(tab);
+        });
+    }
 }
 
 function simulateRoundPoints() {
@@ -415,42 +413,12 @@ function addActivityLog(type, text) {
 
 // --- TAB: DASHBOARD RENDERING ---
 function renderDashboard() {
-    const feedList = document.getElementById("activity-feed");
-    feedList.innerHTML = "";
-    
-    activityFeed.forEach(item => {
-        const row = document.createElement("div");
-        row.className = "feed-item";
-        
-        row.innerHTML = `
-            <div class="feed-meta">
-                <span class="feed-badge ${item.type}">${item.type}</span>
-                <span class="feed-text">${item.text}</span>
-            </div>
-            <span class="feed-time">${item.time}</span>
-        `;
-        feedList.appendChild(row);
-    });
-
-    const standingsBody = document.getElementById("standings-tbody");
-    standingsBody.innerHTML = "";
-
-    LEAGUE_TEAMS.forEach((team, idx) => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td>
-                <div class="standing-team">
-                    <span style="font-weight:700; width:15px; color: var(--text-muted);">${idx+1}</span>
-                    <div class="team-avatar" style="background-color: ${team.color}; color: #fff;">${team.avatar}</div>
-                    <span>${team.name}</span>
-                </div>
-            </td>
-            <td class="standing-record">${team.wins} - ${team.losses}</td>
-            <td class="standing-points">${team.points.toFixed(2)}</td>
-        `;
-        standingsBody.appendChild(tr);
-    });
+    // Dashboard real gerenciado pelo dashboard.js
+    // Esta função é mantida para compatibilidade com chamadas antigas
 }
+
+// LEAGUE_TEAMS substituído pelo banco — mantido como array vazio para compatibilidade
+const LEAGUE_TEAMS = [];
 
 // --- CHAT SYSTEM ---
 function setupChat() {
@@ -460,10 +428,8 @@ function setupChat() {
         const input = document.getElementById("chat-input-msg");
         const msgText = input.value.trim();
         if (msgText) {
-            addChatMessage("Você (Parças FC)", msgText, "P", "var(--neon-blue)", true);
+            addChatMessage(currentManagerName, msgText, currentManagerAvatar, "var(--neon-blue)", true);
             input.value = "";
-            
-            // Simular resposta automática de zoeira de algum bot
             triggerBotChatReply(msgText);
         }
     });
@@ -479,7 +445,7 @@ function setupChat() {
             "Cadê as estatísticas? Meu time tá com projeção de pontuação recorde!"
         ];
         const randomTaunt = taunts[Math.floor(Math.random() * taunts.length)];
-        addChatMessage("Você (Parças FC)", randomTaunt, "P", "var(--neon-blue)", true);
+        addChatMessage(currentManagerName, randomTaunt, "P", "var(--neon-blue)", true);
         triggerBotChatReply(randomTaunt);
     });
 
@@ -492,7 +458,7 @@ function setupChat() {
             "https://media.giphy.com/media/26AHONQ79FdWZhAI0/giphy.gif"
         ];
         const randomGif = gifUrls[Math.floor(Math.random() * gifUrls.length)];
-        addChatMessageWithGif("Você (Parças FC)", "Esse é o sentimento da rodada!", randomGif, "P", "var(--neon-blue)", true);
+        addChatMessageWithGif(currentManagerName, "Esse é o sentimento da rodada!", randomGif, "P", "var(--neon-blue)", true);
         triggerBotChatReply("gif");
     });
 }
