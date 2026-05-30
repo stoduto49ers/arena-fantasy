@@ -2386,3 +2386,33 @@ body {
     transform: scale(1.15);
     box-shadow: 0 0 8px rgba(255,255,255,0.4);
 }
+
+
+/* Profile tabs */
+.profile-tabs {
+    display: flex;
+    gap: 4px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    padding: 4px;
+}
+
+.profile-tab-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-family: var(--font-primary);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.profile-tab-btn.active {
+    background: var(--grad-primary);
+    color: var(--bg-darkest);
+}

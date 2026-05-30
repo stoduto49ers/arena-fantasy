@@ -448,46 +448,43 @@ function renderDashboard() {
 function setupChat() {
     const chatForm = document.getElementById("chat-form");
     if (!chatForm) return;
+
     chatForm.addEventListener("submit", (e) => {
         e.preventDefault();
         const input = document.getElementById("chat-input-msg");
-        const msgText = input.value.trim();
+        const msgText = input?.value.trim();
         if (msgText) {
-            addChatMessage(currentManagerName, msgText, "P", "var(--neon-blue)", true);
+            addChatMessage(currentManagerName, msgText, currentManagerAvatar, "var(--neon-blue)", true);
             input.value = "";
-            
-            // Simular resposta automática de zoeira de algum bot
-            triggerBotChatReply(msgText);
         }
     });
 
-    // Enviar Provocação (Trash Talk)
     const trashBtn = document.getElementById("chat-trash-talk-btn");
-    trashBtn.addEventListener("click", () => {
-        const taunts = [
-            "Esquece, esse ano a taça é minha! Podem chorar no vestiário já 😂",
-            "Acabei de fechar uma contratação cirúrgica no mercado, meu time tá voando baixo!",
-            "Galácticos BR, tá preparado pra passar vergonha no confronto direto?",
-            "Quem escalou o Yuri Alberto tá rezando pra ele não errar o gol sem goleiro kkkkk",
-            "Cadê as estatísticas? Meu time tá com projeção de pontuação recorde!"
-        ];
-        const randomTaunt = taunts[Math.floor(Math.random() * taunts.length)];
-        addChatMessage(currentManagerName, randomTaunt, "P", "var(--neon-blue)", true);
-        triggerBotChatReply(randomTaunt);
-    });
+    if (trashBtn) {
+        trashBtn.addEventListener("click", () => {
+            const taunts = [
+                "Esquece, esse ano a taça é minha! Podem chorar no vestiário já 😂",
+                "Acabei de fechar uma contratação cirúrgica no mercado, meu time tá voando baixo!",
+                "Quem escalou o Yuri Alberto tá rezando pra ele não errar o gol sem goleiro kkkkk",
+                "Cadê as estatísticas? Meu time tá com projeção de pontuação recorde!"
+            ];
+            const randomTaunt = taunts[Math.floor(Math.random() * taunts.length)];
+            addChatMessage(currentManagerName, randomTaunt, currentManagerAvatar, "var(--neon-blue)", true);
+        });
+    }
 
-    // Botão de GIF (simula o anexo de meme no Sleeper)
     const gifBtn = document.getElementById("chat-gif-btn");
-    gifBtn.addEventListener("click", () => {
-        const gifUrls = [
-            "https://media.giphy.com/media/l0HlIDtV6zvnC7f4k/giphy.gif", // Campo vibrante / futebol
-            "https://media.giphy.com/media/t3s3XSxOJZEas/giphy.gif",
-            "https://media.giphy.com/media/26AHONQ79FdWZhAI0/giphy.gif"
-        ];
-        const randomGif = gifUrls[Math.floor(Math.random() * gifUrls.length)];
-        addChatMessageWithGif(currentManagerName, "Esse é o sentimento da rodada!", randomGif, "P", "var(--neon-blue)", true);
-        triggerBotChatReply("gif");
-    });
+    if (gifBtn) {
+        gifBtn.addEventListener("click", () => {
+            const gifUrls = [
+                "https://media.giphy.com/media/l0HlIDtV6zvnC7f4k/giphy.gif",
+                "https://media.giphy.com/media/t3s3XSxOJZEas/giphy.gif",
+                "https://media.giphy.com/media/26AHONQ79FdWZhAI0/giphy.gif"
+            ];
+            const randomGif = gifUrls[Math.floor(Math.random() * gifUrls.length)];
+            addChatMessageWithGif(currentManagerName, "Esse é o sentimento da rodada!", randomGif, currentManagerAvatar, "var(--neon-blue)", true);
+        });
+    }
 }
 
 function addChatMessage(author, text, avatar, color, isUser) {
@@ -935,10 +932,21 @@ function renderMarketList(playerList) {
         });
 
         let buttonHtml = "";
+        const draftIsFinished = typeof Draft !== 'undefined' && Draft.state.draftState?.is_finished;
+        const draftIsActive = typeof Draft !== 'undefined' && Draft.state.draftState?.draft_status === 'active';
+
         if (isHired) {
             buttonHtml = `<button class="market-action-btn added" onclick="sellPlayerFromMarket(${player.id})">Remover</button>`;
+        } else if (draftIsFinished) {
+            buttonHtml = `<button class="market-action-btn" onclick="buyPlayerFromMarket(${player.id})">Contratar via Waiver</button>`;
+        } else if (draftIsActive) {
+            buttonHtml = `<button class="market-action-btn" disabled style="opacity:0.4;cursor:not-allowed;" title="Use o Draft para contratar">
+                <i class="fa-solid fa-circle-dot" style="font-size:10px;color:var(--neon-green);"></i> No Draft
+            </button>`;
         } else {
-            buttonHtml = `<button class="market-action-btn" onclick="buyPlayerFromMarket(${player.id})">Contratar</button>`;
+            buttonHtml = `<button class="market-action-btn" disabled style="opacity:0.4;cursor:not-allowed;" title="Disponível após o draft">
+                <i class="fa-solid fa-lock" style="font-size:10px;"></i> Bloqueado
+            </button>`;
         }
 
         let scoreHtml = "";
