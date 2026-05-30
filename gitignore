@@ -1,0 +1,11 @@
+# SQL de setup (não precisa estar no repositório público)
+*_setup.sql
+*_migration.sql
+database_*.sql
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/

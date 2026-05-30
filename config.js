@@ -1,0 +1,5 @@
+const ORCAMENTO_INICIAL = 1000; // D$
+const RODADAS_DRAFT = 18;
+const MAX_RESERVAS = 7;
+const MAX_VAGAS_LESIONADAS = 2;
+const MOEDA_LABEL = 'D$';

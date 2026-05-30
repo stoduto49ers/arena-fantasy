@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arena Fantasy - Campeonato Brasileiro</title>
+    <meta name="description" content="O melhor fantasy game do Brasileirão, inspirado nas ligas americanas com draft ao vivo, chat integrado e escalação interativa.">
+    <!-- CSS Stylesheet -->
+    <link rel="stylesheet" href="styles.css">
+    <!-- FontAwesome for some standard UI icons (search, trash, etc.) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Supabase SDK via CDN direto -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+    <!-- === TELA DE LOGIN / CADASTRO === -->
+    <div id="auth-screen" style="display:none;">
+        <div class="auth-card">
+            <div class="auth-logo">
+                <div class="logo-badge" style="margin: 0 auto 16px; width:56px; height:56px; font-size:26px;">AF</div>
+                <h1>Arena Fantasy</h1>
+                <p>Campeonato Brasileiro · Formato Draft</p>
+            </div>
+
+            <!-- Toggle Login / Cadastro -->
+            <div class="auth-toggle">
+                <label class="auth-toggle-option">
+                    <input type="radio" name="auth-mode" id="auth-mode-login" value="login" checked>
+                    <span>Entrar</span>
+                </label>
+                <label class="auth-toggle-option">
+                    <input type="radio" name="auth-mode" id="auth-mode-register" value="register">
+                    <span>Criar Conta</span>
+                </label>
+            </div>
+
+            <form id="auth-form" class="auth-form">
+                <!-- Nome do time (só no cadastro) -->
+                <div id="team-name-group" style="display:none;" class="auth-field">
+                    <label>Nome do Seu Time</label>
+                    <div class="auth-input-wrap">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <input type="text" id="auth-team-name" placeholder="Ex: Galácticos FC" maxlength="30">
+                    </div>
+                </div>
+
+                <div class="auth-field">
+                    <label>Email</label>
+                    <div class="auth-input-wrap">
+                        <i class="fa-solid fa-envelope"></i>
+                        <input type="email" id="auth-email" placeholder="seu@email.com" required>
+                    </div>
+                </div>
+
+                <div class="auth-field">
+                    <label>Senha</label>
+                    <div class="auth-input-wrap">
+                        <i class="fa-solid fa-lock"></i>
+                        <input type="password" id="auth-password" placeholder="Mínimo 6 caracteres" required minlength="6">
+                    </div>
+                </div>
+
+                <div id="auth-error-msg" class="auth-msg auth-msg-error" style="display:none;"></div>
+                <div id="auth-success-msg" class="auth-msg auth-msg-success" style="display:none;"></div>
+
+                <button type="submit" id="auth-submit-btn" class="action-btn primary" style="width:100%; justify-content:center; padding: 14px;">
+                    <i class="fa-solid fa-right-to-bracket"></i> Entrar
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- === APP PRINCIPAL === -->
+    <div id="app-container-wrapper" style="display:none;">
+    <div class="app-container">
+        
+        <!-- --- LEFT NAVIGATION --- -->
+        <aside class="left-navigation">
+            <div class="logo-container" id="logo-btn">
+                <div class="logo-badge">AF</div>
+            </div>
+            
+            <div class="nav-divider"></div>
+            
+            <nav class="nav-menu">
+                <!-- Dashboard -->
+                <div class="nav-item active" data-tab="dashboard-tab">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="7" height="9"></rect>
+                        <rect x="14" y="3" width="7" height="5"></rect>
+                        <rect x="14" y="12" width="7" height="9"></rect>
+                        <rect x="3" y="16" width="7" height="5"></rect>
+                    </svg>
+                    <span class="tooltip">Dashboard da Liga</span>
+                </div>
+                
+                <!-- Draft Room -->
+                <div class="nav-item" data-tab="draft-tab">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polygon points="12 8 8 12 12 16 16 12 12 8"></polygon>
+                    </svg>
+                    <span class="tooltip">Sala de Draft</span>
+                    <span class="badge" id="draft-badge">LIVE</span>
+                </div>
+                
+                <!-- My Team (Escalação) -->
+                <div class="nav-item" data-tab="team-tab">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                    <span class="tooltip">Minha Escalação</span>
+                </div>
+                
+                <!-- Matchup -->
+                <div class="nav-item" data-tab="matchup-tab">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                    <span class="tooltip">Confrontos (Matchups)</span>
+                </div>
+                
+                <!-- Players Market -->
+                <div class="nav-item" data-tab="market-tab">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span class="tooltip">Mercado / Waiver</span>
+                </div>
+
+                <!-- Trocas -->
+                <div class="nav-item" data-tab="trades-tab">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="17 1 21 5 17 9"></polyline>
+                        <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                        <polyline points="7 23 3 19 7 15"></polyline>
+                        <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+                    </svg>
+                    <span class="tooltip">Trocas</span>
+                </div>
+
+                <!-- Liga Config -->
+                <div class="nav-item" data-tab="config-tab">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                    <span class="tooltip">Configurações da Liga</span>
+                </div>
+            </nav>
+            
+            <!-- User Profile Avatar (bottom) -->
+            <div class="user-profile" title="Meu Perfil">
+                <!-- Inline styled modern avatar icon/initials using SVG -->
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                    <rect width="48" height="48" fill="#1e2235"/>
+                    <circle cx="24" cy="20" r="8" fill="#00f2fe"/>
+                    <path d="M12 40C12 33.3726 17.3726 28 24 28C30.6274 28 36 33.3726 36 40" fill="#00e676"/>
+                </svg>
+            </div>
+            <!-- Logout -->
+            <div class="nav-item" id="logout-btn" title="Sair" style="margin-top:0;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                <span class="tooltip">Sair</span>
+            </div>
+        </aside>
+        
+        <!-- --- MAIN PANEL --- -->
+        <main class="main-panel">
+            
+            <!-- Main Header -->
+            <header class="main-header">
+                <div class="header-title-container">
+                    <h1 class="header-title" id="page-title">Painel da Liga</h1>
+                    <span class="header-subtitle" id="league-round">Rodada 1 (Brasileirão)</span>
+                </div>
+                <div class="header-actions">
+                    <button class="action-btn" id="simulate-round-btn">
+                        <i class="fa-solid fa-play"></i> Simular Jogos
+                    </button>
+                    <button class="action-btn primary" id="header-cta-btn" data-tab="draft-tab">
+                        <i class="fa-solid fa-trophy"></i> Ir para o Draft
+                    </button>
+                </div>
+            </header>
+            
+            <!-- Scrollable Content Viewport -->
+            <div class="tab-viewport">
+                
+                <!-- --- TAB: DASHBOARD --- -->
+                <section class="tab-content active" id="dashboard-tab">
+                    <div class="dashboard-banner">
+                        <div class="banner-text">
+                            <h2>Liga dos Parças (Brasileirão)</h2>
+                            <p>O Draft está aberto! Monte sua estratégia, analise as estatísticas dos clubes do Campeonato Brasileiro e escale a equipe perfeita para faturar o título da temporada.</p>
+                        </div>
+                        <button class="action-btn primary" onclick="switchTab('draft-tab')">Entrar no Draft</button>
+                    </div>
+                    
+                    <div class="dashboard-grid">
+                        <!-- Activity Feed / Mural -->
+                        <div class="glass-panel feed-section">
+                            <h3><i class="fa-solid fa-newspaper" style="color: var(--neon-blue);"></i> Mural de Atividades da Liga</h3>
+                            <div class="feed-list" id="activity-feed">
+                                <!-- Dynamically populated by JS -->
+                            </div>
+                        </div>
+                        
+                        <!-- Standings / Tabela -->
+                        <div class="glass-panel standings-section">
+                            <h3><i class="fa-solid fa-ranking-star" style="color: var(--neon-green);"></i> Classificação Geral</h3>
+                            <table class="standings-table">
+                                <thead>
+                                    <tr>
+                                        <th>Pos / Time</th>
+                                        <th style="text-align: right;">V-D</th>
+                                        <th style="text-align: right;">PTS</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="standings-tbody">
+                                    <!-- Dynamically populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- --- TAB: DRAFT ROOM --- -->
+                <section class="tab-content" id="draft-tab">
+
+                    <!-- Loading -->
+                    <div id="draft-loading" style="display:none; justify-content:center; align-items:center; padding:60px; flex-direction:column; gap:12px;">
+                        <i class="fa-solid fa-spinner fa-spin" style="font-size:32px; color:var(--neon-blue);"></i>
+                        <span style="color:var(--text-muted);">Carregando draft...</span>
+                    </div>
+
+                    <!-- Banner: minha vez -->
+                    <div id="draft-my-turn-banner" style="display:none; align-items:center; gap:12px; background:rgba(0,255,135,0.1); border:1px solid var(--neon-green); border-radius:var(--border-radius-md); padding:14px 20px; margin-bottom:16px;">
+                        <i class="fa-solid fa-bolt" style="color:var(--neon-green); font-size:20px;"></i>
+                        <span style="font-weight:700; color:var(--neon-green);">É A SUA VEZ DE PICKAR! Escolha um jogador abaixo.</span>
+                    </div>
+
+                    <!-- Header do Draft -->
+                    <div class="draft-header-panel">
+                        <div class="draft-status">
+                            <span class="draft-ticker" id="draft-ticker-msg">AGUARDANDO INÍCIO</span>
+                            <h2 class="draft-title" id="current-pick-announcement">Draft ainda não iniciado</h2>
+                            <div style="display:flex; gap:8px; margin-top:8px;">
+                                <span class="filter-pill active" id="draft-round-badge">Rodada -</span>
+                                <span class="filter-pill" id="draft-pick-badge">Pick -</span>
+                            </div>
+                        </div>
+                        <div class="draft-timer">
+                            <div class="timer-label">Tempo Restante</div>
+                            <div class="timer-value" id="draft-timer-clock">--:--:--</div>
+                        </div>
+                    </div>
+
+                    <!-- Painel Comissário (visível para todos por ora, restringir depois) -->
+                    <div class="glass-panel" id="commissioner-panel" style="margin-bottom:16px;">
+                        <h3><i class="fa-solid fa-crown" style="color:var(--neon-yellow, #ffd700);"></i> Painel do Comissário</h3>
+                        <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:12px;">
+                            <label style="font-size:13px; color:var(--text-secondary);">Tempo por pick:</label>
+                            <select id="commissioner-timer-select" style="background:rgba(255,255,255,0.06); border:1px solid var(--border-color); color:var(--text-primary); border-radius:8px; padding:8px 12px; font-family:var(--font-primary); cursor:pointer;">
+                                <option value="1">1 hora</option>
+                                <option value="2">2 horas</option>
+                                <option value="4">4 horas</option>
+                                <option value="8" selected>8 horas</option>
+                                <option value="12">12 horas</option>
+                            </select>
+                            <button class="action-btn primary" id="commissioner-start-btn">
+                                <i class="fa-solid fa-play"></i> Iniciar Draft
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="draft-layout">
+
+                        <!-- Coluna esquerda: board + pool -->
+                        <div style="display:flex; flex-direction:column; gap:16px; min-width:0;">
+
+                            <!-- Grade do draft -->
+                            <div class="glass-panel">
+                                <h3><i class="fa-solid fa-chess-board" style="color:var(--neon-purple);"></i> Grade de Escolhas (Snake Draft)</h3>
+                                <div class="draft-board-container">
+                                    <div class="draft-board" id="draft-board-grid">
+                                        <!-- Gerado pelo draft.js -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Jogadores disponíveis -->
+                            <div class="glass-panel draft-players-list">
+                                <h3><i class="fa-solid fa-user-plus" style="color:var(--neon-green);"></i> Atletas Disponíveis</h3>
+                                <div style="display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+                                    <div class="market-search" style="flex:1; min-width:160px;">
+                                        <i class="fa-solid fa-magnifying-glass"></i>
+                                        <input type="text" id="draft-player-search" placeholder="Buscar jogador...">
+                                    </div>
+                                    <select id="draft-pos-filter" style="background:rgba(255,255,255,0.06); border:1px solid var(--border-color); color:var(--text-primary); border-radius:8px; padding:8px 12px; font-family:var(--font-primary); cursor:pointer;">
+                                        <option value="TODOS">Todas posições</option>
+                                        <option value="GOL">GOL</option>
+                                        <option value="ZAG">ZAG</option>
+                                        <option value="LAT">LAT</option>
+                                        <option value="MEI">MEI</option>
+                                        <option value="ATA">ATA</option>
+                                    </select>
+                                    <select id="draft-club-filter" style="background:rgba(255,255,255,0.06); border:1px solid var(--border-color); color:var(--text-primary); border-radius:8px; padding:8px 12px; font-family:var(--font-primary); cursor:pointer;">
+                                        <option value="TODOS">Todos os times</option>
+                                        <option value="FLA">Flamengo</option>
+                                        <option value="PAL">Palmeiras</option>
+                                        <option value="BOT">Botafogo</option>
+                                        <option value="CRU">Cruzeiro</option>
+                                        <option value="BAH">Bahia</option>
+                                        <option value="SPFC">São Paulo</option>
+                                        <option value="CAM">Atlético-MG</option>
+                                        <option value="COR">Corinthians</option>
+                                        <option value="GRE">Grêmio</option>
+                                        <option value="FLU">Fluminense</option>
+                                        <option value="VAS">Vasco</option>
+                                        <option value="INT">Internacional</option>
+                                        <option value="BRA">Bragantino</option>
+                                        <option value="MIR">Mirassol</option>
+                                        <option value="ATH">Athletico-PR</option>
+                                        <option value="COT">Coritiba</option>
+                                        <option value="CHE">Chapecoense</option>
+                                        <option value="REM">Remo</option>
+                                        <option value="VIT">Vitória</option>
+                                        <option value="SAN">Santos</option>
+                                    </select>
+                                </div>
+                                <div id="draft-pool-list" style="max-height:420px; overflow-y:auto; padding-right:4px;">
+                                    <!-- Gerado pelo draft.js -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Coluna direita: meu time -->
+                        <div class="glass-panel" style="min-width:200px; max-width:260px; height:fit-content; position:sticky; top:0;">
+                            <h3><i class="fa-solid fa-shield-halved" style="color:var(--neon-blue);"></i> Meu Time</h3>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                                <span style="font-size:12px; color:var(--text-muted);">Picks realizadas</span>
+                                <span class="filter-pill active" id="draft-my-picks-count">0/18</span>
+                            </div>
+                            <div id="draft-my-team-list">
+                                <p style="color:var(--text-muted); font-size:13px;">Nenhum jogador ainda.</p>
+                            </div>
+                        </div>
+
+                    </div>
+                </section>
+                
+                <!-- --- TAB: MY TEAM (ESCALAÇÃO) --- -->
+                <section class="tab-content" id="team-tab">
+                    <div class="lineup-layout">
+                        
+                        <!-- Coluna esquerda: campo + reservas + lesionados -->
+                        <div class="pitch-container-wrapper">
+
+                            <!-- Campo titular -->
+                            <div class="pitch-container">
+                                <div class="pitch-center-circle"></div>
+                                <div class="pitch-center-line"></div>
+                                <div class="pitch-penalty-area-top"></div>
+                                <div class="pitch-penalty-area-bottom"></div>
+                                <div class="pitch-grid" id="pitch-grid-slots">
+                                    <!-- Slots gerados dinamicamente via JS -->
+                                </div>
+                            </div>
+
+                            <!-- Reservas (abaixo do campo) -->
+                            <div class="bench-section">
+                                <div class="bench-label">
+                                    <i class="fa-solid fa-users" style="color:var(--text-muted);"></i>
+                                    Reservas
+                                </div>
+                                <div class="bench-slots" id="bench-slots">
+                                    <!-- 7 slots gerados pelo JS -->
+                                </div>
+                            </div>
+
+                            <!-- Lesionados -->
+                            <div class="bench-section injured-section">
+                                <div class="bench-label" style="color:var(--neon-red);">
+                                    <i class="fa-solid fa-kit-medical"></i>
+                                    Lesionados (IR)
+                                </div>
+                                <div class="bench-slots" id="injured-slots">
+                                    <!-- 2 slots gerados pelo JS -->
+                                </div>
+                            </div>
+
+                        </div>
+                        
+                        <!-- Lineup info / stats sidebar -->
+                        <div class="glass-panel team-stats-card">
+                            <h3><i class="fa-solid fa-sliders" style="color: var(--neon-blue);"></i> Status do Time</h3>
+                            
+                            <div class="stat-row">
+                                <span class="stat-label">Nome do Time</span>
+                                <span class="stat-value" style="color: var(--neon-blue);" id="team-name-display">—</span>
+                            </div>
+                            
+                            <div class="stat-row">
+                                <span class="stat-label">Esquema Tático</span>
+                                <select id="formation-select" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: var(--border-radius-sm); padding: 4px 8px; font-family: var(--font-primary); font-weight: 600; cursor: pointer; outline: none;">
+                                    <option value="4-3-3">4-3-3</option>
+                                    <option value="4-4-2">4-4-2</option>
+                                    <option value="3-5-2">3-5-2</option>
+                                    <option value="3-4-3">3-4-3</option>
+                                    <option value="5-3-2">5-3-2</option>
+                                </select>
+                            </div>
+                            
+                            <div class="stat-row">
+                                <span class="stat-label">Titulares</span>
+                                <span class="stat-value" id="lineup-count-val">0 / 11</span>
+                            </div>
+
+                            <div class="stat-row">
+                                <span class="stat-label">Reservas</span>
+                                <span class="stat-value" id="bench-count-val">0 / 7</span>
+                            </div>
+
+                            <div class="stat-row">
+                                <span class="stat-label">Lesionados (IR)</span>
+                                <span class="stat-value" style="color:var(--neon-red);" id="injured-count-val">0 / 2</span>
+                            </div>
+                            
+                            <div class="stat-row">
+                                <span class="stat-label">Saldo de Dinheiros</span>
+                                <span class="stat-value" id="lineup-cost-val">D$ 1000.00</span>
+                            </div>
+                            
+                            <div class="stat-row">
+                                <span class="stat-label">Pontuação Projetada</span>
+                                <span class="stat-value highlight" id="lineup-projection-val">0.00 pts</span>
+                            </div>
+                            
+                            <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 10px;">
+                                <button class="action-btn primary" style="justify-content: center; width: 100%;" onclick="switchTab('market-tab')">
+                                    <i class="fa-solid fa-search"></i> Abrir Mercado
+                                </button>
+                                <button class="action-btn" style="justify-content: center; width: 100%; border-color: rgba(255,71,87,0.3); color: var(--neon-red);" id="reset-team-btn">
+                                    <i class="fa-solid fa-trash-can"></i> Desescalar Time
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- --- TAB: MATCHUP --- -->
+                <section class="tab-content" id="matchup-tab">
+                    <div class="matchup-grid">
+                        <!-- Head-to-Head Card -->
+                        <div class="matchup-header-card">
+                            <!-- Home Team -->
+                            <div class="matchup-team-summary home">
+                                <div class="matchup-avatar" style="background: var(--grad-primary); color: var(--bg-darkest);">P</div>
+                                <div>
+                                    <h3 class="matchup-team-name">Parças FC (Você)</h3>
+                                    <span class="matchup-team-record">Projeção: <strong id="matchup-home-projection">78.50</strong> pts</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Score Display -->
+                            <div class="matchup-vs-score">
+                                <div class="matchup-vs-divider">VS</div>
+                                <div class="matchup-score-board">
+                                    <span class="matchup-score home-score" id="matchup-home-score">0.00</span>
+                                    <span style="font-size: 20px; font-weight: 700; color: var(--text-muted);">:</span>
+                                    <span class="matchup-score away-score" id="matchup-away-score">0.00</span>
+                                </div>
+                                <div class="projection-label">Pontuação Realizada</div>
+                            </div>
+                            
+                            <!-- Away Team -->
+                            <div class="matchup-team-summary away">
+                                <div class="matchup-avatar" style="background: var(--grad-purple); color: #fff;">G</div>
+                                <div>
+                                    <h3 class="matchup-team-name">Galácticos BR</h3>
+                                    <span class="matchup-team-record">Projeção: <strong id="matchup-away-projection">75.10</strong> pts</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Visual Projections Bar -->
+                        <div class="glass-panel" style="padding: 16px 24px;">
+                            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; margin-bottom: 8px;">
+                                <span style="color: var(--neon-blue);">Parças FC Proj: 78.50</span>
+                                <span style="color: var(--neon-purple);">Galácticos BR Proj: 75.10</span>
+                            </div>
+                            <div class="h2h-progress-container">
+                                <div class="h2h-bar-home" id="h2h-bar-home-width" style="width: 51%;"></div>
+                                <div class="h2h-bar-away" id="h2h-bar-away-width" style="width: 49%;"></div>
+                            </div>
+                            <div style="text-align: center;" class="projection-label">Aproximação de Vitória: 51% (Parças FC)</div>
+                        </div>
+                        
+                        <!-- Detail list comparing player by player -->
+                        <div class="glass-panel">
+                            <h3><i class="fa-solid fa-list-ol" style="color: var(--neon-blue);"></i> Comparativo Posição por Posição</h3>
+                            <div id="matchup-comparison-rows" class="market-list">
+                                <!-- Populated dynamically by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- --- TAB: MERCADO --- -->
+                <section class="tab-content" id="market-tab">
+
+                    <!-- Banner de status (muda conforme fase) -->
+                    <div id="market-status-banner" style="display:none; align-items:center; gap:12px; padding:12px 16px; border-radius:var(--border-radius-md); margin-bottom:16px; border:1px solid;">
+                        <i id="market-status-icon" style="font-size:18px;"></i>
+                        <div>
+                            <div id="market-status-title" style="font-weight:700; font-size:14px;"></div>
+                            <div id="market-status-desc" style="font-size:12px; color:var(--text-muted); margin-top:2px;"></div>
+                        </div>
+                        <button id="market-go-draft-btn" class="action-btn primary" style="margin-left:auto; display:none; padding:7px 14px; font-size:12px;" onclick="switchTab('draft-tab')">
+                            <i class="fa-solid fa-arrow-right"></i> Ir para o Draft
+                        </button>
+                    </div>
+
+                    <!-- Lista de jogadores (sempre visível) -->
+                    <div id="free-market-panel">
+                        <div class="market-header">
+                            <div class="market-search">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <input type="text" id="market-player-search" placeholder="Pesquisar jogador...">
+                            </div>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                <select id="market-pos-filter" style="background:rgba(255,255,255,0.06); border:1px solid var(--border-color); color:var(--text-primary); border-radius:8px; padding:8px 12px; font-family:var(--font-primary); cursor:pointer;">
+                                    <option value="TODOS">Todas posições</option>
+                                    <option value="GOL">GOL</option>
+                                    <option value="ZAG">ZAG</option>
+                                    <option value="LAT">LAT</option>
+                                    <option value="MEI">MEI</option>
+                                    <option value="ATA">ATA</option>
+                                </select>
+                                <select id="market-club-filter" style="background:rgba(255,255,255,0.06); border:1px solid var(--border-color); color:var(--text-primary); border-radius:8px; padding:8px 12px; font-family:var(--font-primary); cursor:pointer;">
+                                    <option value="TODOS">Todos os times</option>
+                                    <option value="FLA">Flamengo</option>
+                                    <option value="PAL">Palmeiras</option>
+                                    <option value="BOT">Botafogo</option>
+                                    <option value="CRU">Cruzeiro</option>
+                                    <option value="BAH">Bahia</option>
+                                    <option value="SPFC">São Paulo</option>
+                                    <option value="CAM">Atlético-MG</option>
+                                    <option value="COR">Corinthians</option>
+                                    <option value="GRE">Grêmio</option>
+                                    <option value="FLU">Fluminense</option>
+                                    <option value="VAS">Vasco</option>
+                                    <option value="INT">Internacional</option>
+                                    <option value="BRA">Bragantino</option>
+                                    <option value="MIR">Mirassol</option>
+                                    <option value="ATH">Athletico-PR</option>
+                                    <option value="COT">Coritiba</option>
+                                    <option value="CHE">Chapecoense</option>
+                                    <option value="REM">Remo</option>
+                                    <option value="VIT">Vitória</option>
+                                    <option value="SAN">Santos</option>
+                                </select>
+                                <div class="filter-pills" id="position-filter-container" style="display:none;">
+                                    <!-- mantido para compatibilidade com app.js -->
+                                </div>
+                            </div>
+                        </div>
+                        <div class="glass-panel">
+                            <div class="market-list" id="market-players-list"></div>
+                        </div>
+                    </div>
+
+                    <!-- Waiver (só aparece pós-draft, sobre a lista) -->
+                    <div id="waiver-panel" style="display:none;">
+                        <div class="glass-panel" style="margin-bottom:16px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                                <div>
+                                    <h3><i class="fa-solid fa-gavel" style="color:var(--neon-orange);"></i> Mercado Waiver — Leilão Diário</h3>
+                                    <p style="font-size:13px; color:var(--text-muted); margin-top:4px;">Lances processados às <strong style="color:var(--neon-blue);">08:00</strong> todos os dias. Maior lance leva e o valor é descontado do saldo.</p>
+                                </div>
+                                <div style="text-align:right;">
+                                    <div style="font-size:11px; color:var(--text-muted);">Próximo processamento</div>
+                                    <div style="font-size:22px; font-weight:800; color:var(--neon-orange);" id="waiver-timer-display">--:--:--</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="glass-panel" style="margin-bottom:16px;">
+                            <h3><i class="fa-solid fa-list-check" style="color:var(--neon-green);"></i> Meus Lances Pendentes</h3>
+                            <div id="my-waiver-bids" style="margin-top:12px;">
+                                <p style="color:var(--text-muted); font-size:13px;">Nenhum lance realizado ainda.</p>
+                            </div>
+                        </div>
+                        <div class="glass-panel">
+                            <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; align-items:center;">
+                                <h3 style="flex:1;"><i class="fa-solid fa-user-plus" style="color:var(--neon-blue);"></i> Jogadores Disponíveis para Lance</h3>
+                                <div class="market-search" style="max-width:220px;">
+                                    <i class="fa-solid fa-magnifying-glass"></i>
+                                    <input type="text" id="waiver-search" placeholder="Buscar...">
+                                </div>
+                            </div>
+                            <div id="waiver-players-list"></div>
+                        </div>
+                    </div>
+
+                </section>
+
+                <!-- --- TAB: TROCAS --- -->
+                <section class="tab-content" id="trades-tab">
+
+                    <!-- Bloqueado pré-draft -->
+                    <div id="trades-blocked" style="display:none;">
+                        <div class="market-blocked-screen">
+                            <i class="fa-solid fa-lock" style="font-size:48px; color:var(--text-muted);"></i>
+                            <h2>Trocas Bloqueadas</h2>
+                            <p>Trocas só são permitidas após o draft ser concluído.</p>
+                        </div>
+                    </div>
+
+                    <!-- Trocas ativas (pós-draft) -->
+                    <div id="trades-active">
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+
+                            <!-- Propor troca -->
+                            <div class="glass-panel">
+                                <h3><i class="fa-solid fa-paper-plane" style="color:var(--neon-blue);"></i> Propor Troca</h3>
+                                <div class="cfg-form" style="margin-top:14px;">
+                                    <div class="cfg-field">
+                                        <label>Para qual time?</label>
+                                        <select id="trade-target-manager">
+                                            <option value="">Selecione um manager...</option>
+                                        </select>
+                                    </div>
+                                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:4px;">
+                                        <div>
+                                            <div style="font-size:11px; font-weight:700; color:var(--neon-green); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Você oferece</div>
+                                            <div id="trade-offer-list" style="min-height:60px; background:rgba(0,255,135,0.04); border:1px dashed rgba(0,255,135,0.2); border-radius:8px; padding:10px; font-size:12px; color:var(--text-muted); margin-bottom:8px;">
+                                                Selecione jogadores abaixo
+                                            </div>
+                                            <div style="display:flex; align-items:center; gap:8px;">
+                                                <i class="fa-solid fa-coins" style="color:var(--neon-green); font-size:12px;"></i>
+                                                <input type="number" id="trade-offer-money" min="0" placeholder="D$ 0" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(0,255,135,0.2); border-radius:6px; color:var(--neon-green); font-family:var(--font-primary); font-size:13px; padding:6px 10px; font-weight:700;">
+                                            </div>
+                                            <div style="font-size:10px; color:var(--text-muted); margin-top:4px;">Saldo: <span id="trade-my-budget">—</span></div>
+                                        </div>
+                                        <div>
+                                            <div style="font-size:11px; font-weight:700; color:var(--neon-blue); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Você recebe</div>
+                                            <div id="trade-receive-list" style="min-height:60px; background:rgba(0,242,254,0.04); border:1px dashed rgba(0,242,254,0.2); border-radius:8px; padding:10px; font-size:12px; color:var(--text-muted); margin-bottom:8px;">
+                                                Selecione jogadores abaixo
+                                            </div>
+                                            <div style="display:flex; align-items:center; gap:8px;">
+                                                <i class="fa-solid fa-coins" style="color:var(--neon-blue); font-size:12px;"></i>
+                                                <input type="number" id="trade-request-money" min="0" placeholder="D$ 0" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(0,242,254,0.2); border-radius:6px; color:var(--neon-blue); font-family:var(--font-primary); font-size:13px; padding:6px 10px; font-weight:700;">
+                                            </div>
+                                            <div style="font-size:10px; color:var(--text-muted); margin-top:4px;">D$ do adversário</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Seus jogadores -->
+                                    <div class="cfg-field" style="margin-top:4px;">
+                                        <label>Seus jogadores (clique para adicionar à oferta)</label>
+                                        <div id="trade-my-players" style="max-height:180px; overflow-y:auto; margin-top:6px;"></div>
+                                    </div>
+
+                                    <!-- Jogadores do adversário -->
+                                    <div class="cfg-field" id="trade-their-players-section" style="display:none;">
+                                        <label>Jogadores deles (clique para pedir)</label>
+                                        <div id="trade-their-players" style="max-height:180px; overflow-y:auto; margin-top:6px;"></div>
+                                    </div>
+
+                                    <button class="action-btn primary" id="send-trade-btn" style="margin-top:4px;">
+                                        <i class="fa-solid fa-paper-plane"></i> Enviar Proposta
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Trocas recebidas / enviadas -->
+                            <div style="display:flex; flex-direction:column; gap:16px;">
+                                <div class="glass-panel">
+                                    <h3><i class="fa-solid fa-inbox" style="color:var(--neon-orange);"></i> Propostas Recebidas</h3>
+                                    <div id="trades-received" style="margin-top:12px;">
+                                        <p style="color:var(--text-muted); font-size:13px;">Nenhuma proposta recebida.</p>
+                                    </div>
+                                </div>
+                                <div class="glass-panel">
+                                    <h3><i class="fa-solid fa-clock-rotate-left" style="color:var(--text-muted);"></i> Propostas Enviadas</h3>
+                                    <div id="trades-sent" style="margin-top:12px;">
+                                        <p style="color:var(--text-muted); font-size:13px;">Nenhuma proposta enviada.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </section>
+
+                <!-- --- TAB: CONFIGURAÇÕES DA LIGA --- -->
+                <section class="tab-content" id="config-tab">
+                    <div class="config-grid">
+
+                        <!-- 1. Info da Liga -->
+                        <div class="glass-panel commissioner-only">
+                            <h3><i class="fa-solid fa-shield-halved" style="color:var(--neon-blue);"></i> Informações da Liga</h3>
+                            <div class="cfg-form">
+                                <div class="cfg-field">
+                                    <label>Nome da Liga</label>
+                                    <input type="text" id="cfg-league-name" placeholder="Arena Fantasy" maxlength="40">
+                                </div>
+                                <div class="cfg-field">
+                                    <label>Temporada</label>
+                                    <input type="number" id="cfg-season-year" value="2025" min="2024" max="2030">
+                                </div>
+                                <button class="action-btn primary" id="cfg-save-info-btn">
+                                    <i class="fa-solid fa-floppy-disk"></i> Salvar
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 2. Draft -->
+                        <div class="glass-panel">
+                            <h3><i class="fa-solid fa-shuffle" style="color:var(--neon-green);"></i> Configuração do Draft</h3>
+                            <div class="cfg-form">
+                                <div class="cfg-field commissioner-only">
+                                    <label>Tempo por Pick</label>
+                                    <select id="cfg-draft-timer">
+                                        <option value="1">1 hora</option>
+                                        <option value="2">2 horas</option>
+                                        <option value="4">4 horas</option>
+                                        <option value="8" selected>8 horas</option>
+                                        <option value="12">12 horas</option>
+                                    </select>
+                                </div>
+                                <div class="cfg-field">
+                                    <label>Ordem do Draft</label>
+                                    <div id="cfg-draft-order-list" style="margin-top:8px;"></div>
+                                </div>
+                                <button class="action-btn primary commissioner-only" id="cfg-shuffle-draft-btn">
+                                    <i class="fa-solid fa-dice"></i> Sortear Ordem
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 3. Formato da Liga -->
+                        <div class="glass-panel commissioner-only">
+                            <h3><i class="fa-solid fa-sitemap" style="color:var(--neon-purple);"></i> Formato da Liga</h3>
+                            <div class="cfg-form">
+                                <div class="cfg-field">
+                                    <label>Formato</label>
+                                    <select id="cfg-format">
+                                        <option value="groups">Grupos + Playoffs</option>
+                                        <option value="single_table">Liga Corrida</option>
+                                    </select>
+                                </div>
+                                <div class="cfg-field">
+                                    <label>Número de Grupos</label>
+                                    <select id="cfg-group-count">
+                                        <option value="2">2 grupos</option>
+                                        <option value="4" selected>4 grupos</option>
+                                        <option value="8">8 grupos</option>
+                                    </select>
+                                </div>
+                                <div class="cfg-field">
+                                    <label>Semanas de Playoffs</label>
+                                    <select id="cfg-playoff-weeks">
+                                        <option value="2">2 semanas</option>
+                                        <option value="3" selected>3 semanas (semi + final)</option>
+                                        <option value="4">4 semanas</option>
+                                    </select>
+                                </div>
+                                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                    <button class="action-btn primary" id="cfg-save-format-btn">
+                                        <i class="fa-solid fa-floppy-disk"></i> Salvar Formato
+                                    </button>
+                                    <button class="action-btn" id="cfg-shuffle-groups-btn" style="border-color:rgba(0,255,135,0.3); color:var(--neon-green);">
+                                        <i class="fa-solid fa-dice"></i> Sortear Grupos
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 4. Grupos -->
+                        <div class="glass-panel">
+                            <h3><i class="fa-solid fa-layer-group" style="color:#ffd700;"></i> Grupos da Liga</h3>
+                            <div id="cfg-groups-display" style="display:flex; flex-wrap:wrap; gap:12px; margin-top:12px;">
+                                <p style="color:var(--text-muted);font-size:13px;">Grupos ainda não sorteados.</p>
+                            </div>
+                            <button class="action-btn primary commissioner-only" id="cfg-generate-matchups-btn" style="margin-top:16px;">
+                                <i class="fa-solid fa-calendar-days"></i> Gerar Confrontos da Temporada
+                            </button>
+                        </div>
+
+                        <!-- 5. Pontuação -->
+                        <div class="glass-panel commissioner-only" style="grid-column: 1 / -1;">
+                            <h3><i class="fa-solid fa-star" style="color:#ffd700;"></i> Sistema de Pontuação</h3>
+                            <p style="font-size:12px; color:var(--text-muted); margin-bottom:16px;">Defina quantos pontos cada evento vale. Valores negativos penalizam.</p>
+                            <div class="scoring-grid">
+                                <div class="scoring-section">
+                                    <div class="scoring-section-title">⚽ Ataque</div>
+                                    <div class="scoring-row"><label>Gol</label><input type="number" id="score-gol" step="0.5"></div>
+                                    <div class="scoring-row"><label>Assistência</label><input type="number" id="score-assistencia" step="0.5"></div>
+                                    <div class="scoring-row"><label>Finalização no Gol</label><input type="number" id="score-finalizacao_gol" step="0.5"></div>
+                                    <div class="scoring-row"><label>Finalização Fora</label><input type="number" id="score-finalizacao_fora" step="0.5"></div>
+                                    <div class="scoring-row"><label>Pênalti Convertido</label><input type="number" id="score-penalti_convertido" step="0.5"></div>
+                                    <div class="scoring-row"><label>Pênalti Perdido</label><input type="number" id="score-penalti_perdido" step="0.5"></div>
+                                </div>
+                                <div class="scoring-section">
+                                    <div class="scoring-section-title">🧤 Defesa / GK</div>
+                                    <div class="scoring-row"><label>Defesa Difícil</label><input type="number" id="score-defesa_dificil" step="0.5"></div>
+                                    <div class="scoring-row"><label>Pênalti Defendido</label><input type="number" id="score-penalti_defendido" step="0.5"></div>
+                                    <div class="scoring-row"><label>Jogo sem Sofrer Gol</label><input type="number" id="score-jogo_sem_sofrer_gol" step="0.5"></div>
+                                    <div class="scoring-row"><label>Gol Sofrido</label><input type="number" id="score-gol_sofrido" step="0.5"></div>
+                                    <div class="scoring-row"><label>Desarme</label><input type="number" id="score-desarme" step="0.5"></div>
+                                </div>
+                                <div class="scoring-section">
+                                    <div class="scoring-section-title">🟨 Disciplina</div>
+                                    <div class="scoring-row"><label>Cartão Amarelo</label><input type="number" id="score-cartao_amarelo" step="0.5"></div>
+                                    <div class="scoring-row"><label>Cartão Vermelho</label><input type="number" id="score-cartao_vermelho" step="0.5"></div>
+                                    <div class="scoring-row"><label>Falta Cometida</label><input type="number" id="score-falta_cometida" step="0.5"></div>
+                                    <div class="scoring-row"><label>Gol Contra</label><input type="number" id="score-gol_contra" step="0.5"></div>
+                                    <div class="scoring-row"><label>Vitória do Time</label><input type="number" id="score-vitoria_time" step="0.5"></div>
+                                </div>
+                            </div>
+                            <button class="action-btn primary" id="cfg-save-scoring-btn" style="margin-top:20px;">
+                                <i class="fa-solid fa-floppy-disk"></i> Salvar Pontuação
+                            </button>
+                        </div>
+
+                    </div>
+                </section>
+                
+            </div>
+        </main>
+        
+        <!-- --- CHAT SIDEBAR (RIGHT) --- -->
+        <aside class="chat-sidebar">
+            <div class="chat-header">
+                <div class="chat-channel-badge"></div>
+                <div class="chat-header-info">
+                    <h4>Bate-papo da Liga</h4>
+                    <span id="chat-online-users">4 membros ativos</span>
+                </div>
+            </div>
+            
+            <div class="chat-messages" id="chat-messages-container">
+                <!-- Simulated messages from users -->
+            </div>
+            
+            <div class="chat-input-area">
+                <form id="chat-form">
+                    <div class="chat-input-container">
+                        <button type="button" class="chat-btn-icon" id="chat-trash-talk-btn" title="Enviar Provocação">
+                            <i class="fa-solid fa-fire"></i>
+                        </button>
+                        <input type="text" id="chat-input-msg" placeholder="Mande uma zoeira no chat..." autocomplete="off">
+                        <button type="button" class="chat-btn-icon" id="chat-gif-btn" title="Anexar GIF">
+                            <i class="fa-solid fa-face-laugh-squint"></i>
+                        </button>
+                        <button type="submit" class="chat-send-btn" id="chat-send-btn">
+                            <i class="fa-solid fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </aside>
+        
+    </div>
+
+    </div><!-- fim .app-container -->
+    </div><!-- fim #app-container-wrapper -->
+
+    <!-- Scripts na ordem correta -->
+    <script src="config.js"></script>
+    <script src="players.js"></script>
+    <script src="supabase.js"></script>
+    <script src="auth.js"></script>
+    <script src="draft.js"></script>
+    <script src="league-config.js"></script>
+    <script src="waiver.js"></script>
+    <script src="trades.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

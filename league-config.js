@@ -1,0 +1,332 @@
+// =============================================
+// ARENA FANTASY - League Config
+// =============================================
+
+const LeagueConfig = {
+
+    state: {
+        config: null,
+        managers: [],
+        groups: [],
+        currentUser: null,
+        isCommissioner: false,
+    },
+
+    async init(user) {
+        LeagueConfig.state.currentUser = user;
+        await LeagueConfig.loadConfig();
+        await LeagueConfig.loadManagers();
+        await LeagueConfig.loadGroups();
+        LeagueConfig.checkCommissioner();
+        LeagueConfig.render();
+    },
+
+    async loadConfig() {
+        const { data } = await window.supabaseClient
+            .from('league_config')
+            .select('*')
+            .eq('id', 1)
+            .single();
+        LeagueConfig.state.config = data;
+    },
+
+    async loadManagers() {
+        const { data } = await window.supabaseClient
+            .from('managers')
+            .select('*')
+            .order('created_at', { ascending: true });
+        LeagueConfig.state.managers = data || [];
+    },
+
+    async loadGroups() {
+        const { data } = await window.supabaseClient
+            .from('league_groups')
+            .select('*')
+            .order('group_name', { ascending: true });
+        LeagueConfig.state.groups = data || [];
+    },
+
+    checkCommissioner() {
+        const cfg = LeagueConfig.state.config;
+        const uid = LeagueConfig.state.currentUser?.id;
+        // Comissário = primeiro manager cadastrado OU commissioner_id definido
+        const firstManager = LeagueConfig.state.managers[0];
+        LeagueConfig.state.isCommissioner =
+            cfg?.commissioner_id === uid || firstManager?.id === uid;
+    },
+
+    // --- Salva uma seção da config ---
+    async saveConfig(fields) {
+        await window.supabaseClient
+            .from('league_config')
+            .update({ ...fields, updated_at: new Date().toISOString() })
+            .eq('id', 1);
+        await LeagueConfig.loadConfig();
+    },
+
+    // --- Sorteia ordem do draft ---
+    async shuffleDraftOrder() {
+        const managers = [...LeagueConfig.state.managers];
+        // Fisher-Yates shuffle
+        for (let i = managers.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [managers[i], managers[j]] = [managers[j], managers[i]];
+        }
+        const order = managers.map(m => ({ id: m.id, team_name: m.team_name }));
+        await LeagueConfig.saveConfig({ draft_order: order });
+        LeagueConfig.renderDraftOrder();
+        LeagueConfig.showToast('Ordem do draft sorteada!', 'success');
+    },
+
+    // --- Sorteia grupos ---
+    async shuffleGroups() {
+        const managers = [...LeagueConfig.state.managers];
+        const cfg = LeagueConfig.state.config;
+        const groupCount = cfg?.group_count || 4;
+
+        // Embaralha managers
+        for (let i = managers.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [managers[i], managers[j]] = [managers[j], managers[i]];
+        }
+
+        // Deleta grupos antigos
+        await window.supabaseClient.from('league_groups').delete().neq('id', 0);
+
+        // Cria novos grupos
+        const groupNames = ['A','B','C','D','E','F','G','H'];
+        const groups = [];
+        for (let g = 0; g < groupCount; g++) {
+            const start = g * (managers.length / groupCount);
+            const end = start + (managers.length / groupCount);
+            const groupManagers = managers.slice(start, end);
+            groups.push({
+                group_name: groupNames[g],
+                manager_ids: groupManagers.map(m => m.id)
+            });
+        }
+
+        await window.supabaseClient.from('league_groups').insert(groups);
+        await LeagueConfig.loadGroups();
+        LeagueConfig.renderGroups();
+        LeagueConfig.showToast('Grupos sorteados!', 'success');
+    },
+
+    // --- Gera confrontos da fase regular ---
+    async generateMatchups() {
+        const cfg = LeagueConfig.state.config;
+        const groups = LeagueConfig.state.groups;
+        if (groups.length === 0) {
+            LeagueConfig.showToast('Sorteie os grupos primeiro.', 'error');
+            return;
+        }
+
+        // Deleta confrontos antigos da fase regular
+        await window.supabaseClient
+            .from('matchups')
+            .delete()
+            .eq('phase', 'regular');
+
+        const allMatchups = [];
+        const totalWeeks = cfg.total_rounds - cfg.playoff_weeks;
+        let week = 1;
+
+        // Para cada grupo, gera round-robin
+        groups.forEach(group => {
+            const ids = group.manager_ids;
+            const rounds = [];
+            // Round robin simples
+            for (let i = 0; i < ids.length; i++) {
+                for (let j = i + 1; j < ids.length; j++) {
+                    rounds.push({ home: ids[i], away: ids[j] });
+                }
+            }
+            // Distribui nas semanas disponíveis (repete se necessário)
+            rounds.forEach((matchup, idx) => {
+                const w = (idx % totalWeeks) + 1;
+                allMatchups.push({
+                    week: w,
+                    home_manager_id: matchup.home,
+                    away_manager_id: matchup.away,
+                    phase: 'regular',
+                    group_name: group.group_name
+                });
+            });
+        });
+
+        await window.supabaseClient.from('matchups').insert(allMatchups);
+        LeagueConfig.showToast(`${allMatchups.length} confrontos gerados!`, 'success');
+    },
+
+    // --- Render principal ---
+    render() {
+        LeagueConfig.renderLeagueInfo();
+        LeagueConfig.renderScoring();
+        LeagueConfig.renderDraftOrder();
+        LeagueConfig.renderFormat();
+        LeagueConfig.renderGroups();
+        LeagueConfig.toggleCommissionerControls();
+    },
+
+    toggleCommissionerControls() {
+        const isComm = LeagueConfig.state.isCommissioner;
+        document.querySelectorAll('.commissioner-only').forEach(el => {
+            el.style.display = isComm ? '' : 'none';
+        });
+        document.querySelectorAll('.commissioner-only input, .commissioner-only select, .commissioner-only button:not(.view-btn)')
+            .forEach(el => { el.disabled = !isComm; });
+    },
+
+    renderLeagueInfo() {
+        const cfg = LeagueConfig.state.config;
+        if (!cfg) return;
+        const nameEl = document.getElementById('cfg-league-name');
+        const yearEl = document.getElementById('cfg-season-year');
+        if (nameEl) nameEl.value = cfg.league_name || '';
+        if (yearEl) yearEl.value = cfg.season_year || 2025;
+    },
+
+    renderScoring() {
+        const cfg = LeagueConfig.state.config;
+        if (!cfg?.scoring) return;
+        const s = typeof cfg.scoring === 'string' ? JSON.parse(cfg.scoring) : cfg.scoring;
+        Object.entries(s).forEach(([key, val]) => {
+            const el = document.getElementById(`score-${key}`);
+            if (el) el.value = val;
+        });
+    },
+
+    renderDraftOrder() {
+        const cfg = LeagueConfig.state.config;
+        const container = document.getElementById('cfg-draft-order-list');
+        if (!container) return;
+
+        const order = cfg?.draft_order || [];
+        if (order.length === 0) {
+            container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Ordem ainda não sorteada.</p>';
+            return;
+        }
+        container.innerHTML = order.map((m, i) =>
+            `<div class="draft-order-row">
+                <span class="draft-order-num">${i + 1}</span>
+                <span class="draft-order-name">${m.team_name}</span>
+            </div>`
+        ).join('');
+    },
+
+    renderFormat() {
+        const cfg = LeagueConfig.state.config;
+        if (!cfg) return;
+        const fmtEl = document.getElementById('cfg-format');
+        const playoffEl = document.getElementById('cfg-playoff-weeks');
+        const groupEl = document.getElementById('cfg-group-count');
+        if (fmtEl) fmtEl.value = cfg.format || 'groups';
+        if (playoffEl) playoffEl.value = cfg.playoff_weeks || 3;
+        if (groupEl) groupEl.value = cfg.group_count || 4;
+    },
+
+    renderGroups() {
+        const container = document.getElementById('cfg-groups-display');
+        if (!container) return;
+        const groups = LeagueConfig.state.groups;
+        const managers = LeagueConfig.state.managers;
+
+        if (groups.length === 0) {
+            container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Grupos ainda não sorteados.</p>';
+            return;
+        }
+
+        container.innerHTML = groups.map(g => {
+            const memberIds = g.manager_ids || [];
+            const members = memberIds.map(id => managers.find(m => m.id === id)).filter(Boolean);
+            return `<div class="group-card">
+                <div class="group-label">Grupo ${g.group_name}</div>
+                ${members.map(m => `<div class="group-member">${m.team_name}</div>`).join('')}
+            </div>`;
+        }).join('');
+    },
+
+    // --- Salva pontuação ---
+    async saveScoring() {
+        const keys = ['gol','assistencia','gol_contra','cartao_amarelo','cartao_vermelho',
+            'defesa_dificil','penalti_defendido','penalti_perdido','penalti_convertido',
+            'jogo_sem_sofrer_gol','gol_sofrido','vitoria_time','falta_cometida',
+            'desarme','finalizacao_gol','finalizacao_fora'];
+        const scoring = {};
+        keys.forEach(k => {
+            const el = document.getElementById(`score-${k}`);
+            if (el) scoring[k] = parseFloat(el.value) || 0;
+        });
+        await LeagueConfig.saveConfig({ scoring });
+        LeagueConfig.showToast('Pontuação salva!', 'success');
+    },
+
+    // --- Salva info da liga ---
+    async saveLeagueInfo() {
+        const name = document.getElementById('cfg-league-name')?.value?.trim();
+        const year = parseInt(document.getElementById('cfg-season-year')?.value);
+        if (!name) { LeagueConfig.showToast('Digite o nome da liga.', 'error'); return; }
+        await LeagueConfig.saveConfig({ league_name: name, season_year: year });
+        LeagueConfig.showToast('Liga atualizada!', 'success');
+    },
+
+    // --- Salva formato ---
+    async saveFormat() {
+        const format = document.getElementById('cfg-format')?.value;
+        const playoffWeeks = parseInt(document.getElementById('cfg-playoff-weeks')?.value);
+        const groupCount = parseInt(document.getElementById('cfg-group-count')?.value);
+        await LeagueConfig.saveConfig({ format, playoff_weeks: playoffWeeks, group_count: groupCount });
+        LeagueConfig.showToast('Formato salvo!', 'success');
+    },
+
+    showToast(msg, type = 'success') {
+        let toast = document.getElementById('league-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'league-toast';
+            document.body.appendChild(toast);
+        }
+        toast.textContent = msg;
+        toast.className = `league-toast league-toast-${type}`;
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 3000);
+    }
+};
+
+// Eventos da aba de configuração
+document.addEventListener('DOMContentLoaded', () => {
+    // Salvar info da liga
+    document.getElementById('cfg-save-info-btn')?.addEventListener('click', LeagueConfig.saveLeagueInfo);
+
+    // Salvar pontuação
+    document.getElementById('cfg-save-scoring-btn')?.addEventListener('click', LeagueConfig.saveScoring);
+
+    // Sortear draft
+    document.getElementById('cfg-shuffle-draft-btn')?.addEventListener('click', () => {
+        if (confirm('Sortear nova ordem do draft? A ordem atual será substituída.')) {
+            LeagueConfig.shuffleDraftOrder();
+        }
+    });
+
+    // Salvar formato
+    document.getElementById('cfg-save-format-btn')?.addEventListener('click', LeagueConfig.saveFormat);
+
+    // Sortear grupos
+    document.getElementById('cfg-shuffle-groups-btn')?.addEventListener('click', () => {
+        if (confirm('Sortear grupos? Os grupos atuais serão substituídos.')) {
+            LeagueConfig.shuffleGroups();
+        }
+    });
+
+    // Gerar confrontos
+    document.getElementById('cfg-generate-matchups-btn')?.addEventListener('click', () => {
+        if (confirm('Gerar confrontos da temporada? Os confrontos anteriores serão apagados.')) {
+            LeagueConfig.generateMatchups();
+        }
+    });
+
+    // Timer do draft (sincroniza com Draft.js)
+    document.getElementById('cfg-draft-timer')?.addEventListener('change', (e) => {
+        if (typeof Draft !== 'undefined') Draft.state.timerHours = parseInt(e.target.value);
+    });
+});
