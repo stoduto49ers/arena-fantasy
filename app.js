@@ -2,20 +2,11 @@
 let players = JSON.parse(JSON.stringify(PLAYERS_DATABASE));
 
 // --- ESTADO DO JOGO ---
-// Nome e dados do manager atual (preenchidos após login)
 let currentManagerName = "Meu Time";
 let currentManagerAvatar = "M";
-
 let activeTab = "dashboard-tab";
 let userBudget = ORCAMENTO_INICIAL;
 let isGamesSimulated = false;
-let activeFormation = "4-3-3";
-
-let activeTab = "dashboard-tab";
-let userBudget = ORCAMENTO_INICIAL; // Orçamento em D$ para o restante da temporada
-let isGamesSimulated = false;
-
-// Esquema Tático Ativo
 let activeFormation = "4-3-3";
 
 // Mapa de Formações Táticas Suportadas
