@@ -1207,30 +1207,88 @@ function renderPitch() {
         pitchGrid.appendChild(rowDiv);
     });
 
-    // Render reservas
-    const reservesContainer = document.createElement("div");
-    reservesContainer.id = "reserves-container";
-    reservesContainer.className = "reserves-grid";
-    lineup.RESERVAS.forEach((player, idx) => {
-        const slotEl = generateSlotHtml("RESERVAS", idx, player, `Reserva ${idx + 1}`);
-        reservesContainer.appendChild(slotEl);
-    });
-    pitchGrid.parentElement.appendChild(reservesContainer);
+    // Render reservas — usa container fixo no HTML abaixo do campo
+    const benchSlots = document.getElementById("bench-slots");
+    if (benchSlots) {
+        benchSlots.innerHTML = "";
+        lineup.RESERVAS.forEach((player, idx) => {
+            const slotEl = generateBenchSlotHtml("RESERVAS", idx, player, `Reserva ${idx + 1}`);
+            benchSlots.appendChild(slotEl);
+        });
+    }
 
-    // Render lesões
-    const injuriesContainer = document.createElement("div");
-    injuriesContainer.id = "injuries-container";
-    injuriesContainer.className = "injuries-grid";
-    lineup.LESOES.forEach((player, idx) => {
-        const slotEl = generateSlotHtml("LESOES", idx, player, `Lesão ${idx + 1}`);
-        injuriesContainer.appendChild(slotEl);
-    });
-    pitchGrid.parentElement.appendChild(injuriesContainer);
+    // Render lesões — usa container fixo no HTML
+    const injuredSlots = document.getElementById("injured-slots");
+    if (injuredSlots) {
+        injuredSlots.innerHTML = "";
+        lineup.LESOES.forEach((player, idx) => {
+            const slotEl = generateBenchSlotHtml("LESOES", idx, player, `Lesão ${idx + 1}`);
+            injuredSlots.appendChild(slotEl);
+        });
+    }
 
     updateLineupStats();
 }
 
-// Updated generateSlotHtml with drag-and-drop support
+// Gera slot para banco de reservas e lesionados (estilo diferente do campo)
+function generateBenchSlotHtml(pos, idx, player, defaultName) {
+    const slotEl = document.createElement("div");
+    slotEl.className = "bench-player-slot";
+    slotEl.setAttribute("data-position", pos);
+    slotEl.setAttribute("data-index", idx);
+    slotEl.draggable = true;
+
+    slotEl.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', JSON.stringify({ pos, idx }));
+    });
+    slotEl.addEventListener('dragover', (e) => { e.preventDefault(); });
+    slotEl.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+        const srcArr = lineup[data.pos];
+        const dstArr = lineup[pos];
+        const tmp = srcArr[data.idx];
+        srcArr[data.idx] = dstArr[idx];
+        dstArr[idx] = tmp;
+        renderPitch();
+    });
+
+    if (player) {
+        slotEl.classList.add("filled");
+        const badgeEl = document.createElement("div");
+        badgeEl.className = "bench-slot-badge";
+        badgeEl.innerText = player.name.substring(0, 2).toUpperCase();
+        slotEl.appendChild(badgeEl);
+        const nameEl = document.createElement("div");
+        nameEl.className = "bench-slot-name";
+        nameEl.innerText = player.name;
+        slotEl.appendChild(nameEl);
+    } else {
+        const badgeEl = document.createElement("div");
+        badgeEl.className = "bench-slot-badge";
+        badgeEl.innerHTML = `<i class="fa-solid fa-shirt" style="font-size:14px;"></i>`;
+        slotEl.appendChild(badgeEl);
+        const nameEl = document.createElement("div");
+        nameEl.className = "bench-slot-name";
+        nameEl.innerText = defaultName;
+        slotEl.appendChild(nameEl);
+    }
+
+    slotEl.addEventListener("click", () => {
+        if (player) {
+            const confirmRemove = confirm(`Remover ${player.name} do banco?`);
+            if (confirmRemove) {
+                lineup[pos][idx] = null;
+                const dbPlayer = players.find(p => p.id === player.id);
+                if (dbPlayer) dbPlayer.status = "disponivel";
+                renderPitch();
+                renderMarket();
+            }
+        }
+    });
+
+    return slotEl;
+}
 function generateSlotHtml(pos, idx, player, defaultName) {
     const slotEl = document.createElement("div");
     slotEl.className = "pitch-player-slot";
