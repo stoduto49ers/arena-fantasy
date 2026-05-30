@@ -4,7 +4,6 @@
 
 const Auth = {
 
-    // Verifica se há sessão ativa ao carregar a página
     async init() {
         const { data: { session } } = await window.supabaseClient.auth.getSession();
         if (session) {
@@ -13,7 +12,6 @@ const Auth = {
             Auth.showAuthScreen();
         }
 
-        // Escuta mudanças de sessão (login/logout)
         window.supabaseClient.auth.onAuthStateChange(async (event, session) => {
             if (event === 'SIGNED_IN') {
                 await Auth.onLoginSuccess(session.user);
@@ -23,55 +21,23 @@ const Auth = {
         });
     },
 
-    // Chamado após login bem-sucedido
     async onLoginSuccess(user) {
-        // Garante que o perfil do manager existe no banco
         await Auth.ensureManagerProfile(user);
         Auth.hideAuthScreen();
+
+        // Guarda o user globalmente para acesso em qualquer módulo
+        window._currentUser = user;
+
         // Inicializa o app principal
         if (typeof initApp === 'function') initApp(user);
+
         // Inicializa o dashboard
         if (typeof Dashboard !== 'undefined') Dashboard.init(user);
+
         // Inicializa o draft
         if (typeof Draft !== 'undefined') Draft.init(user);
-
-        // Reinicializa o draft ao clicar na aba
-        document.querySelectorAll('.nav-item[data-tab="draft-tab"]').forEach(el => {
-            el.addEventListener('click', () => {
-                if (typeof Draft !== 'undefined') Draft.init(user);
-            });
-        });
-
-        // Reinicializa o dashboard ao clicar na aba
-        document.querySelectorAll('.nav-item[data-tab="dashboard-tab"]').forEach(el => {
-            el.addEventListener('click', () => {
-                if (typeof Dashboard !== 'undefined') Dashboard.init(user);
-            });
-        });
-
-        // Inicializa config da liga ao clicar na aba
-        document.querySelectorAll('.nav-item[data-tab="config-tab"]').forEach(el => {
-            el.addEventListener('click', () => {
-                if (typeof LeagueConfig !== 'undefined') LeagueConfig.init(user);
-            });
-        });
-
-        // Inicializa waiver ao clicar na aba de mercado
-        document.querySelectorAll('.nav-item[data-tab="market-tab"]').forEach(el => {
-            el.addEventListener('click', () => {
-                if (typeof Waiver !== 'undefined') Waiver.init(user);
-            });
-        });
-
-        // Inicializa trocas ao clicar na aba
-        document.querySelectorAll('.nav-item[data-tab="trades-tab"]').forEach(el => {
-            el.addEventListener('click', () => {
-                if (typeof Trades !== 'undefined') Trades.init(user);
-            });
-        });
     },
 
-    // Cria o perfil do manager no banco se for a primeira vez
     async ensureManagerProfile(user) {
         const { data, error } = await window.supabaseClient
             .from('managers')
@@ -91,7 +57,6 @@ const Auth = {
         }
     },
 
-    // Cadastro com email + senha + nome do time
     async signUp(email, password, teamName) {
         Auth.setLoading(true);
         Auth.clearError();
@@ -99,9 +64,7 @@ const Auth = {
         const { data, error } = await window.supabaseClient.auth.signUp({
             email,
             password,
-            options: {
-                data: { team_name: teamName }
-            }
+            options: { data: { team_name: teamName } }
         });
 
         if (error) {
@@ -112,28 +75,20 @@ const Auth = {
         Auth.setLoading(false);
     },
 
-    // Login com email + senha
     async signIn(email, password) {
         Auth.setLoading(true);
         Auth.clearError();
 
-        const { data, error } = await window.supabaseClient.auth.signInWithPassword({
-            email,
-            password
-        });
+        const { data, error } = await window.supabaseClient.auth.signInWithPassword({ email, password });
 
-        if (error) {
-            Auth.showError(Auth.translateError(error.message));
-        }
+        if (error) Auth.showError(Auth.translateError(error.message));
         Auth.setLoading(false);
     },
 
-    // Logout
     async signOut() {
         await window.supabaseClient.auth.signOut();
     },
 
-    // --- UI Helpers ---
     showAuthScreen() {
         document.getElementById('auth-screen').style.display = 'flex';
         document.getElementById('app-container-wrapper').style.display = 'none';
@@ -172,7 +127,6 @@ const Auth = {
         el.style.display = 'block';
     },
 
-    // Traduz erros do Supabase para português
     translateError(msg) {
         if (msg.includes('Invalid login credentials')) return 'Email ou senha incorretos.';
         if (msg.includes('Email not confirmed')) return 'Confirme seu email antes de entrar.';
@@ -183,15 +137,14 @@ const Auth = {
     }
 };
 
-// --- Setup dos eventos da tela de login ---
 document.addEventListener('DOMContentLoaded', () => {
+    // Form de login/cadastro
     const form = document.getElementById('auth-form');
     const modeToggle = document.querySelectorAll('input[name="auth-mode"]');
     const teamNameGroup = document.getElementById('team-name-group');
     const submitBtn = document.getElementById('auth-submit-btn');
     const logoutBtn = document.getElementById('logout-btn');
 
-    // Alterna entre login e cadastro
     modeToggle.forEach(radio => {
         radio.addEventListener('change', () => {
             const isLogin = document.getElementById('auth-mode-login').checked;
@@ -204,7 +157,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Submit do formulário
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const email = document.getElementById('auth-email').value.trim();
@@ -220,18 +172,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Botão de logout (dentro do app)
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', () => Auth.signOut());
-    }
+    if (logoutBtn) logoutBtn.addEventListener('click', () => Auth.signOut());
 
-    // Botão de perfil
+    // Perfil
     document.getElementById('open-profile-btn')?.addEventListener('click', () => {
-        window.supabaseClient.auth.getUser().then(({ data }) => {
-            if (data?.user) Profile.open(data.user);
-        });
+        if (window._currentUser) Profile.open(window._currentUser);
     });
 
-    // Inicializa autenticação
     Auth.init();
 });

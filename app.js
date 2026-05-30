@@ -9,6 +9,70 @@ let userBudget = ORCAMENTO_INICIAL;
 let isGamesSimulated = false;
 let activeFormation = "4-3-3";
 
+// LEAGUE_TEAMS mantido como array vazio para compatibilidade com código legado
+const LEAGUE_TEAMS = [];
+
+// =============================================
+// NAVEGAÇÃO ENTRE ABAS — CENTRALIZADA
+// Roda logo que o DOM carrega, independente do login
+// =============================================
+document.addEventListener('DOMContentLoaded', () => {
+    // Navegação por clique nos itens do menu lateral
+    document.querySelectorAll('.nav-item[data-tab]').forEach(item => {
+        item.addEventListener('click', () => {
+            const tabId = item.getAttribute('data-tab');
+            if (tabId) switchTab(tabId);
+        });
+    });
+
+    // Logo volta ao dashboard
+    const logoBtn = document.getElementById('logo-btn');
+    if (logoBtn) logoBtn.addEventListener('click', () => switchTab('dashboard-tab'));
+
+    // Botão CTA do header
+    const ctaBtn = document.getElementById('header-cta-btn');
+    if (ctaBtn) ctaBtn.addEventListener('click', () => {
+        const tabId = ctaBtn.getAttribute('data-tab') || 'draft-tab';
+        switchTab(tabId);
+    });
+});
+
+function switchTab(tabId) {
+    activeTab = tabId;
+
+    // Ativa item do menu
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.toggle('active', item.getAttribute('data-tab') === tabId);
+    });
+
+    // Mostra aba correta
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.toggle('active', content.id === tabId);
+    });
+
+    // Título da página
+    const titles = {
+        'dashboard-tab': 'Painel da Liga',
+        'draft-tab': 'Draft ao Vivo',
+        'team-tab': 'Minha Escalação',
+        'matchup-tab': 'Confronto Direto',
+        'market-tab': 'Mercado',
+        'trades-tab': 'Trocas',
+        'config-tab': 'Configurações da Liga'
+    };
+    const pageTitle = document.getElementById('page-title');
+    if (pageTitle) pageTitle.innerText = titles[tabId] || '';
+
+    // Inicializa módulos ao mudar de aba
+    const user = window._currentUser;
+    if (!user) return;
+    if (tabId === 'draft-tab' && typeof Draft !== 'undefined') Draft.init(user);
+    if (tabId === 'dashboard-tab' && typeof Dashboard !== 'undefined') Dashboard.init(user);
+    if (tabId === 'config-tab' && typeof LeagueConfig !== 'undefined') LeagueConfig.init(user);
+    if (tabId === 'market-tab' && typeof Waiver !== 'undefined') Waiver.init(user);
+    if (tabId === 'trades-tab' && typeof Trades !== 'undefined') Trades.init(user);
+}
+
 // Mapa de Formações Táticas Suportadas
 const FORMATIONS = {
     "4-3-3": {
@@ -103,7 +167,6 @@ let chatMessages = [];
 // initApp é chamado por auth.js após autenticação
 
 function initApp(user) {
-    setupTabListeners();
     setupChat();
     setupMarket();
     setupLineup();
@@ -133,55 +196,6 @@ function initApp(user) {
     renderMarket();
     renderPitch();
     renderChat();
-}
-
-// --- CONTROLE DE ABAS ---
-// Usa delegação de evento no documento para garantir que funciona sempre
-document.addEventListener('click', (e) => {
-    const navItem = e.target.closest('.nav-item[data-tab]');
-    if (navItem) {
-        const tabId = navItem.getAttribute('data-tab');
-        if (tabId) switchTab(tabId);
-    }
-});
-
-function setupTabListeners() {
-    const logoBtn = document.getElementById("logo-btn");
-    if (logoBtn) logoBtn.addEventListener("click", () => switchTab("dashboard-tab"));
-    const ctaBtn = document.getElementById("header-cta-btn");
-    if (ctaBtn) ctaBtn.addEventListener("click", () => {
-        switchTab(ctaBtn.getAttribute("data-tab") || "draft-tab");
-    });
-}
-
-function switchTab(tabId) {
-    activeTab = tabId;
-
-    // Atualiza estado visual no menu lateral
-    document.querySelectorAll(".nav-item").forEach(item => {
-        item.classList.toggle("active", item.getAttribute("data-tab") === tabId);
-    });
-
-    // Exibe a aba correspondente
-    document.querySelectorAll(".tab-content").forEach(content => {
-        content.classList.toggle("active", content.id === tabId);
-    });
-
-    // Customizações de cabeçalho
-    const pageTitle = document.getElementById("page-title");
-    const ctaBtn = document.getElementById("header-cta-btn");
-
-    const titles = {
-        "dashboard-tab": "Painel da Liga",
-        "draft-tab": "Draft ao Vivo",
-        "team-tab": "Minha Escalação",
-        "matchup-tab": "Confronto Direto",
-        "market-tab": "Mercado",
-        "trades-tab": "Trocas",
-        "config-tab": "Configurações da Liga"
-    };
-    if (pageTitle) pageTitle.innerText = titles[tabId] || "";
-    if (ctaBtn) ctaBtn.style.display = tabId === "matchup-tab" ? "none" : "flex";
 }
 
 // --- HEADER ACTIONS ---
@@ -376,8 +390,7 @@ function renderDashboard() {
     // Esta função é mantida para compatibilidade com chamadas antigas
 }
 
-// LEAGUE_TEAMS substituído pelo banco — mantido como array vazio para compatibilidade
-const LEAGUE_TEAMS = [];
+// renderDashboard real gerenciado pelo dashboard.js
 
 // --- CHAT SYSTEM ---
 function setupChat() {
