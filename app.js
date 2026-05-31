@@ -877,23 +877,22 @@ function renderMarket() {
 
 function renderMarketList(playerList) {
     const container = document.getElementById("market-players-list");
+    if (!container) return;
     container.innerHTML = "";
 
     if (playerList.length === 0) {
-        container.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted);">Nenhum jogador encontrado com os filtros selecionados.</div>`;
+        container.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted);">Nenhum jogador encontrado.</div>`;
         return;
     }
 
-    // Ordena por preço (Cartoletas) do mais caro para o mais barato
-    const sorted = [...playerList].sort((a,b) => b.cost - a.cost);
+    // Ordena por projeção de temporada
+    const sorted = [...playerList].sort((a,b) => b.projPoints - a.projPoints);
 
     sorted.forEach(player => {
         const row = document.createElement("div");
         row.className = "player-market-row";
-        
         const posClass = `pos-${player.position.toLowerCase()}`;
-        
-        // Verifica se jogador está escalado no time do usuário
+
         let isHired = false;
         Object.values(lineup).forEach(arr => {
             if (arr.some(p => p && p.id === player.id)) isHired = true;
@@ -906,23 +905,24 @@ function renderMarketList(playerList) {
         if (isHired) {
             buttonHtml = `<button class="market-action-btn added" onclick="sellPlayerFromMarket(${player.id})">Remover</button>`;
         } else if (draftIsFinished) {
-            buttonHtml = `<button class="market-action-btn" onclick="buyPlayerFromMarket(${player.id})">Contratar via Waiver</button>`;
+            buttonHtml = `<button class="market-action-btn" onclick="buyPlayerFromMarket(${player.id})">Waiver</button>`;
         } else if (draftIsActive) {
-            buttonHtml = `<button class="market-action-btn" disabled style="opacity:0.4;cursor:not-allowed;" title="Use o Draft para contratar">
-                <i class="fa-solid fa-circle-dot" style="font-size:10px;color:var(--neon-green);"></i> No Draft
+            buttonHtml = `<button class="market-action-btn" disabled style="opacity:0.4;cursor:not-allowed;">
+                <i class="fa-solid fa-circle-dot" style="font-size:10px;color:var(--neon-green);"></i> Draft
             </button>`;
         } else {
-            buttonHtml = `<button class="market-action-btn" disabled style="opacity:0.4;cursor:not-allowed;" title="Disponível após o draft">
+            buttonHtml = `<button class="market-action-btn" disabled style="opacity:0.4;cursor:not-allowed;">
                 <i class="fa-solid fa-lock" style="font-size:10px;"></i> Bloqueado
             </button>`;
         }
 
-        let scoreHtml = "";
-        if (isGamesSimulated) {
-            scoreHtml = `<span class="player-stat-val" style="color:var(--neon-green);">${player.realPoints.toFixed(2)}</span>`;
-        } else {
-            scoreHtml = `<span class="player-stat-val">${player.projPoints.toFixed(2)}</span>`;
-        }
+        // Stats reais
+        const gols = player.gols || 0;
+        const assists = player.assistencias || 0;
+        const jogos = player.jogos || 0;
+        const statsStr = jogos > 0
+            ? `${jogos} j ${gols > 0 ? '· ⚽'+gols : ''} ${assists > 0 ? '· 🅰️'+assists : ''}`.trim()
+            : 'Sem jogos';
 
         row.innerHTML = `
             <div class="player-main-info">
@@ -932,23 +932,14 @@ function renderMarketList(playerList) {
                     <div class="player-sub-txt">
                         <span class="player-pos-badge ${posClass}">${player.position}</span>
                         <span class="player-club-txt">${player.club}</span>
+                        <span style="font-size:10px; color:var(--text-muted);">${statsStr}</span>
                     </div>
                 </div>
             </div>
-            
-            <div class="player-stat-col">
-                <span class="player-stat-val">${MOEDA_LABEL} ${player.cost.toFixed(2)}</span>
-                <span class="player-stat-lbl">Preço</span>
-            </div>
 
             <div class="player-stat-col">
-                ${scoreHtml}
-                <span class="player-stat-lbl">${isGamesSimulated ? 'Fez' : 'Proj'}</span>
-            </div>
-
-            <div class="player-stat-col">
-                <span class="player-stat-val">${(player.projPoints * 0.9).toFixed(1)} - ${(player.projPoints * 1.1).toFixed(1)}</span>
-                <span class="player-stat-lbl">Faixa</span>
+                <span class="player-stat-val" style="color:var(--neon-green);">${player.projPoints}</span>
+                <span class="player-stat-lbl">proj. temporada</span>
             </div>
 
             ${buttonHtml}

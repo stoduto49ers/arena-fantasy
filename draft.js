@@ -416,20 +416,30 @@ const Draft = {
 
         list.innerHTML = players.map(p => {
             const posClass = `pos-${p.position.toLowerCase()}`;
+            const stats = [];
+            if (p.gols > 0) stats.push(`⚽ ${p.gols}`);
+            if (p.assistencias > 0) stats.push(`🅰️ ${p.assistencias}`);
+            if (p.jogos > 0) stats.push(`${p.jogos} jogos`);
+            const statsStr = stats.length ? stats.join(' · ') : 'Sem stats ainda';
+
             return `<div class="draft-player-row ${posClass}" data-player-id="${p.id}">
                 <div class="draft-player-info">
                     <span class="player-pos-badge ${posClass}">${p.position}</span>
                     <div>
                         <div class="player-name-row">${p.name}</div>
-                        <div class="player-meta">${p.club} · Proj: ${p.projPoints} pts</div>
+                        <div class="player-meta">${p.club} · ${statsStr}</div>
                     </div>
                 </div>
-                ${isMyTurn && !isFinished
-                    ? `<button class="action-btn primary pick-btn" onclick="Draft.makePick({id:${p.id}, name:'${p.name}', position:'${p.position}', club:'${p.club}', projPoints:${p.projPoints}})">
-                        <i class="fa-solid fa-plus"></i> Pick
-                       </button>`
-                    : `<span class="player-cost-badge">D$${p.cost}</span>`
-                }
+                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+                    <span style="font-size:13px; font-weight:800; color:var(--neon-green);">${p.projPoints} pts</span>
+                    <span style="font-size:9px; color:var(--text-muted);">projeção temporada</span>
+                    ${isMyTurn && !isFinished
+                        ? `<button class="action-btn primary pick-btn" style="margin-top:4px;" onclick="Draft.makePick({id:${p.id}, name:'${p.name.replace(/'/g,"\\'")}', position:'${p.position}', club:'${p.club}', projPoints:${p.projPoints}})">
+                            <i class="fa-solid fa-plus"></i> Pick
+                           </button>`
+                        : ''
+                    }
+                </div>
             </div>`;
         }).join('');
     },
