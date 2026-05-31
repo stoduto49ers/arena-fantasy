@@ -99,18 +99,10 @@ let draftFinished = false;
 let botALineup = [];
 
 // --- HISTÓRICO DE MURAL (DASHBOARD) ---
-let activityFeed = [
-    { type: "system", text: "A temporada <strong>Liga dos Parças 2026</strong> foi criada oficialmente!", time: "Hoje, 10:00" },
-    { type: "system", text: `O mercado de transferências está aberto com orçamento de <strong>${MOEDA_LABEL} ${ORCAMENTO_INICIAL.toFixed(2)}</strong>.`, time: "Hoje, 10:05" },
-    { type: "draft", text: "A sala de <strong>Draft ao Vivo</strong> já está disponível. Faça suas escolhas!", time: "Hoje, 10:10" }
-];
+let activityFeed = [];
 
 // --- HISTÓRICO DE MENSAGENS DO CHAT ---
-let chatMessages = [
-    { author: "Galácticos BR", text: "E aí galera, preparados para perderem feio esse ano? Meu rascunho de draft tá insano!", avatar: "G", color: "var(--neon-purple)", isUser: false, time: "11:20" },
-    { author: "Mitadores FC", text: "Fale menos e mitre mais kkkkk. Ano passado você ficou em último", avatar: "M", color: "var(--neon-orange)", isUser: false, time: "11:22" },
-    { author: "Chapéu Cruzado", text: "Só digo uma coisa: Pedro no Flamengo vai voar essa rodada. Quem tiver a primeira escolha do draft pega ele", avatar: "C", color: "var(--neon-green)", isUser: false, time: "11:25" }
-];
+let chatMessages = [];
 
 // initApp chamado pelo auth.js após login
 // Variáveis de estado do manager atual
@@ -233,6 +225,7 @@ function switchTab(tabId) {
     }
     if (tabId === "jogos-tab" && typeof Jogos !== "undefined") Jogos.load();
     if (tabId === "news-tab" && typeof News !== "undefined") News.load();
+    if (tabId === "team-tab") renderPitch();
 }
 
 // --- HEADER ACTIONS ---

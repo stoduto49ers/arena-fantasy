@@ -273,6 +273,7 @@ const Draft = {
 
     // --- Render principal ---
     render() {
+        Draft.renderCommissionerPanel();
         Draft.renderHeader();
         Draft.renderBoard();
         Draft.renderPool();
@@ -470,8 +471,45 @@ const Draft = {
         if (el) el.style.display = show ? 'flex' : 'none';
     },
 
+    // Verifica se o usuário atual é o comissário (primeiro manager cadastrado)
+    isCommissioner() {
+        const uid = Draft.state.currentUser?.id;
+        const first = Draft.state.managers[0];
+        const cfg = window._leagueConfig;
+        return uid && (first?.id === uid || cfg?.commissioner_id === uid);
+    },
+
+    // Mostra/esconde painel do comissário
+    renderCommissionerPanel() {
+        const panel = document.getElementById('commissioner-panel');
+        if (panel) panel.style.display = Draft.isCommissioner() ? '' : 'none';
+    },
+
+    // Reset completo do draft
+    async commissionerReset() {
+        if (!Draft.isCommissioner()) return;
+        if (!confirm('Resetar o draft? TODAS as picks serão apagadas e o draft voltará ao início.')) return;
+
+        // Apaga todas as picks
+        await window.supabaseClient.from('draft_picks').delete().neq('id', 0);
+
+        // Reseta o estado
+        await window.supabaseClient.from('draft_state').update({
+            current_pick_index: 0,
+            is_finished: false,
+            draft_status: 'pending',
+            timer_expires_at: null,
+            updated_at: new Date().toISOString()
+        }).eq('id', 1);
+
+        await Draft.loadPicks();
+        await Draft.loadDraftState();
+        Draft.render();
+    },
+
     // --- Painel do comissário para configurar e iniciar o draft ---
     async commissionerStart(timerHours) {
+        if (!Draft.isCommissioner()) return;
         Draft.state.timerHours = timerHours;
         const expiresAt = new Date(Date.now() + timerHours * 3600 * 1000).toISOString();
         await window.supabaseClient
@@ -506,5 +544,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (confirm(`Iniciar o draft com ${hours}h por pick?`)) {
             Draft.commissionerStart(hours);
         }
+    });
+
+    // Botão reset do draft
+    document.getElementById('commissioner-reset-btn')?.addEventListener('click', () => {
+        Draft.commissionerReset();
     });
 });
