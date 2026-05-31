@@ -68,31 +68,32 @@ const Jogos = {
         return null;
     },
 
-    // Rodada atual hardcoded com resultados reais (atualizado 31/mai/2026)
+    // Rodada atual com resultados reais (atualizado 31/mai/2026)
     getRodadaAtual() {
         return [
-            // Rodada 18 — em andamento
-            { home: 'Athletico-PR',  away: 'Mirassol',      homeScore: 1, awayScore: 0, date: '2026-05-30', time: '16:00', stadium: 'Arena da Baixada', status: 'finished', rodada: 18 },
-            { home: 'Flamengo',      away: 'Coritiba',       homeScore: null, awayScore: null, date: '2026-05-31', time: '16:00', stadium: 'Maracanã', status: 'scheduled', rodada: 18 },
-            { home: 'Bahia',         away: 'Botafogo',       homeScore: null, awayScore: null, date: '2026-05-31', time: '18:30', stadium: 'Arena Fonte Nova', status: 'scheduled', rodada: 18 },
-            { home: 'Grêmio',        away: 'Corinthians',    homeScore: null, awayScore: null, date: '2026-05-31', time: '16:00', stadium: 'Arena do Grêmio', status: 'scheduled', rodada: 18 },
-            { home: 'Palmeiras',     away: 'Vasco',          homeScore: null, awayScore: null, date: '2026-06-01', time: '16:00', stadium: 'Allianz Parque', status: 'scheduled', rodada: 18 },
-            { home: 'São Paulo',     away: 'Internacional',  homeScore: null, awayScore: null, date: '2026-06-01', time: '18:30', stadium: 'MorumBIS', status: 'scheduled', rodada: 18 },
-            { home: 'Cruzeiro',      away: 'Atlético-MG',    homeScore: null, awayScore: null, date: '2026-06-01', time: '18:30', stadium: 'Arena MRV', status: 'scheduled', rodada: 18 },
-            { home: 'Fluminense',    away: 'Santos',         homeScore: null, awayScore: null, date: '2026-06-01', time: '20:00', stadium: 'Maracanã', status: 'scheduled', rodada: 18 },
-            { home: 'Vitória',       away: 'Remo',           homeScore: null, awayScore: null, date: '2026-06-01', time: '20:00', stadium: 'Barradão', status: 'scheduled', rodada: 18 },
-            { home: 'Chapecoense',   away: 'Bragantino',     homeScore: null, awayScore: null, date: '2026-06-01', time: '20:00', stadium: 'Arena Condá', status: 'scheduled', rodada: 18 },
+            // Rodada 18 — sábado 30/mai (encerrados)
+            { home: 'Athletico-PR',  away: 'Mirassol',     homeScore: 1, awayScore: 0, date: '2026-05-30', time: '16:00', stadium: 'Arena da Baixada',    status: 'finished', rodada: 18 },
+            { home: 'Flamengo',      away: 'Coritiba',     homeScore: 1, awayScore: 0, date: '2026-05-30', time: '16:00', stadium: 'Maracanã',            status: 'finished', rodada: 18 },
+            { home: 'Grêmio',        away: 'Corinthians',  homeScore: 1, awayScore: 3, date: '2026-05-30', time: '17:30', stadium: 'Arena do Grêmio',     status: 'finished', rodada: 18 },
+            { home: 'Bahia',         away: 'Botafogo',     homeScore: 2, awayScore: 0, date: '2026-05-30', time: '17:30', stadium: 'Arena Fonte Nova',    status: 'finished', rodada: 18 },
+            { home: 'Santos',        away: 'Vitória',      homeScore: null, awayScore: null, date: '2026-05-30', time: '20:00', stadium: 'Vila Belmiro',  status: 'scheduled', rodada: 18 },
+            // Rodada 18 — domingo 31/mai
+            { home: 'Bragantino',    away: 'Internacional',homeScore: null, awayScore: null, date: '2026-05-31', time: '11:00', stadium: 'Nabi Abi Chedid',status: 'scheduled', rodada: 18 },
+            { home: 'Vasco',         away: 'Atlético-MG',  homeScore: null, awayScore: null, date: '2026-05-31', time: '16:00', stadium: 'São Januário',  status: 'scheduled', rodada: 18 },
+            { home: 'Palmeiras',     away: 'Chapecoense',  homeScore: null, awayScore: null, date: '2026-05-31', time: '20:30', stadium: 'Allianz Parque', status: 'scheduled', rodada: 18 },
+            { home: 'Cruzeiro',      away: 'Fluminense',   homeScore: null, awayScore: null, date: '2026-05-31', time: '20:30', stadium: 'Arena MRV',     status: 'scheduled', rodada: 18 },
+            { home: 'Remo',          away: 'São Paulo',    homeScore: null, awayScore: null, date: '2026-05-31', time: '20:30', stadium: 'Mangueirão',    status: 'scheduled', rodada: 18 },
             // Rodada 17 — encerrada
-            { home: 'São Paulo',     away: 'Botafogo',       homeScore: 1, awayScore: 1, date: '2026-05-22', time: '', stadium: 'MorumBIS', status: 'finished', rodada: 17 },
-            { home: 'Vitória',       away: 'Internacional',  homeScore: 2, awayScore: 0, date: '2026-05-22', time: '', stadium: 'Barradão', status: 'finished', rodada: 17 },
-            { home: 'Mirassol',      away: 'Fluminense',     homeScore: 1, awayScore: 0, date: '2026-05-22', time: '', stadium: 'Maião', status: 'finished', rodada: 17 },
-            { home: 'Grêmio',        away: 'Santos',         homeScore: 3, awayScore: 2, date: '2026-05-23', time: '', stadium: 'Arena do Grêmio', status: 'finished', rodada: 17 },
-            { home: 'Flamengo',      away: 'Palmeiras',      homeScore: 0, awayScore: 3, date: '2026-05-23', time: '', stadium: 'Maracanã', status: 'finished', rodada: 17 },
-            { home: 'Cruzeiro',      away: 'Chapecoense',    homeScore: 2, awayScore: 1, date: '2026-05-24', time: '', stadium: 'Arena MRV', status: 'finished', rodada: 17 },
-            { home: 'Remo',          away: 'Athletico-PR',   homeScore: 1, awayScore: 2, date: '2026-05-24', time: '', stadium: 'Mangueirão', status: 'finished', rodada: 17 },
-            { home: 'Corinthians',   away: 'Atlético-MG',    homeScore: 1, awayScore: 0, date: '2026-05-24', time: '', stadium: 'Neo Química Arena', status: 'finished', rodada: 17 },
-            { home: 'Vasco',         away: 'Bragantino',     homeScore: 0, awayScore: 3, date: '2026-05-24', time: '', stadium: 'São Januário', status: 'finished', rodada: 17 },
-            { home: 'Coritiba',      away: 'Bahia',          homeScore: 3, awayScore: 2, date: '2026-05-25', time: '', stadium: 'Couto Pereira', status: 'finished', rodada: 17 },
+            { home: 'São Paulo',     away: 'Botafogo',     homeScore: 1, awayScore: 1, date: '2026-05-22', time: '', stadium: 'MorumBIS',              status: 'finished', rodada: 17 },
+            { home: 'Vitória',       away: 'Internacional',homeScore: 2, awayScore: 0, date: '2026-05-22', time: '', stadium: 'Barradão',             status: 'finished', rodada: 17 },
+            { home: 'Mirassol',      away: 'Fluminense',   homeScore: 1, awayScore: 0, date: '2026-05-22', time: '', stadium: 'Maião',               status: 'finished', rodada: 17 },
+            { home: 'Grêmio',        away: 'Santos',       homeScore: 3, awayScore: 2, date: '2026-05-23', time: '', stadium: 'Arena do Grêmio',     status: 'finished', rodada: 17 },
+            { home: 'Flamengo',      away: 'Palmeiras',    homeScore: 0, awayScore: 3, date: '2026-05-23', time: '', stadium: 'Maracanã',            status: 'finished', rodada: 17 },
+            { home: 'Cruzeiro',      away: 'Chapecoense',  homeScore: 2, awayScore: 1, date: '2026-05-24', time: '', stadium: 'Arena MRV',           status: 'finished', rodada: 17 },
+            { home: 'Remo',          away: 'Athletico-PR', homeScore: 1, awayScore: 2, date: '2026-05-24', time: '', stadium: 'Mangueirão',          status: 'finished', rodada: 17 },
+            { home: 'Corinthians',   away: 'Atlético-MG',  homeScore: 1, awayScore: 0, date: '2026-05-24', time: '', stadium: 'Neo Química Arena',  status: 'finished', rodada: 17 },
+            { home: 'Vasco',         away: 'Bragantino',   homeScore: 0, awayScore: 3, date: '2026-05-24', time: '', stadium: 'São Januário',        status: 'finished', rodada: 17 },
+            { home: 'Coritiba',      away: 'Bahia',        homeScore: 3, awayScore: 2, date: '2026-05-25', time: '', stadium: 'Couto Pereira',       status: 'finished', rodada: 17 },
         ];
     },
 

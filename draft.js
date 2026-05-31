@@ -228,6 +228,7 @@ const Draft = {
                 Draft.renderBoard();
                 Draft.renderPool();
                 Draft.renderMyTeam();
+                Draft.renderMiniPitch();
             })
             .subscribe();
     },
@@ -278,6 +279,7 @@ const Draft = {
         Draft.renderBoard();
         Draft.renderPool();
         Draft.renderMyTeam();
+        Draft.renderMiniPitch();
         Draft.startTimer();
     },
 
@@ -475,6 +477,54 @@ const Draft = {
                 </div>`).join('')}
             </div>`
         ).join('');
+    },
+
+    // --- Mini campo de posições draftadas ---
+    renderMiniPitch() {
+        const container = document.getElementById('draft-mini-pitch');
+        if (!container) return;
+
+        const myPicks = Draft.getMyPicks(Draft.state.currentUser?.id);
+        const byPos = { GOL: [], ZAG: [], LAT: [], MEI: [], ATA: [] };
+        myPicks.forEach(p => {
+            if (byPos[p.player_position]) byPos[p.player_position].push(p.player_name);
+        });
+
+        // Configuração visual: ATA no topo, GOL embaixo (campo de cima pra baixo)
+        const rows = [
+            { pos: 'ATA', label: 'ATA', max: 4, color: 'var(--neon-red)' },
+            { pos: 'MEI', label: 'MEI', max: 5, color: '#a855f7' },
+            { pos: 'LAT', label: 'LAT', max: 2, color: 'var(--neon-green)' },
+            { pos: 'ZAG', label: 'ZAG', max: 3, color: 'var(--neon-blue)' },
+            { pos: 'GOL', label: 'GOL', max: 2, color: '#ffc800' },
+        ];
+
+        container.innerHTML = `
+            <div style="background:rgba(10,25,15,0.6); border:1px solid rgba(255,255,255,0.1);
+                border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:4px;">
+                ${rows.map(row => {
+                    const players = byPos[row.pos] || [];
+                    // Mostra slots: preenchidos ou vazios
+                    const totalSlots = Math.max(players.length, row.max > 3 ? 3 : row.max);
+                    const slots = Array.from({length: totalSlots}, (_, i) => {
+                        const name = players[i];
+                        return name
+                            ? `<div style="background:${row.color}22; border:1px solid ${row.color}55;
+                                border-radius:4px; padding:2px 4px; font-size:9px; font-weight:700;
+                                color:${row.color}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+                                max-width:60px;" title="${name}">${name.split(' ')[0]}</div>`
+                            : `<div style="width:32px; height:22px; border:1px dashed rgba(255,255,255,0.15);
+                                border-radius:4px; background:rgba(255,255,255,0.02);"></div>`;
+                    });
+
+                    return `<div style="display:flex; align-items:center; gap:4px; justify-content:center;">
+                        ${slots.join('')}
+                    </div>`;
+                }).join('')}
+                <div style="font-size:9px; color:var(--text-muted); text-align:center; margin-top:2px;">
+                    ATA · MEI · LAT · ZAG · GOL
+                </div>
+            </div>`;
     },
 
     showLoading(show) {
