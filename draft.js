@@ -417,10 +417,11 @@ const Draft = {
         list.innerHTML = players.map(p => {
             const posClass = `pos-${p.position.toLowerCase()}`;
             const stats = [];
-            if (p.gols > 0) stats.push(`⚽ ${p.gols}`);
-            if (p.assistencias > 0) stats.push(`🅰️ ${p.assistencias}`);
-            if (p.jogos > 0) stats.push(`${p.jogos} jogos`);
-            const statsStr = stats.length ? stats.join(' · ') : 'Sem stats ainda';
+            if (p.gols > 0) stats.push(`⚽${p.gols}`);
+            if (p.assistencias > 0) stats.push(`🅰️${p.assistencias}`);
+            if ((p.cleanSheets||0) > 0 && (p.position==='GOL'||p.position==='ZAG'||p.position==='LAT')) stats.push(`🧤${p.cleanSheets}CS`);
+            if (p.jogos > 0) stats.push(`${p.jogos}j`);
+            const statsStr = stats.length ? stats.join(' · ') : 'Sem dados';
 
             return `<div class="draft-player-row ${posClass}" data-player-id="${p.id}">
                 <div class="draft-player-info">

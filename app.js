@@ -920,9 +920,15 @@ function renderMarketList(playerList) {
         const gols = player.gols || 0;
         const assists = player.assistencias || 0;
         const jogos = player.jogos || 0;
-        const statsStr = jogos > 0
-            ? `${jogos} j ${gols > 0 ? '· ⚽'+gols : ''} ${assists > 0 ? '· 🅰️'+assists : ''}`.trim()
-            : 'Sem jogos';
+        const cs = player.cleanSheets || 0;
+        const pos = player.position;
+
+        let statParts = [];
+        if (gols > 0) statParts.push(`⚽${gols}`);
+        if (assists > 0) statParts.push(`🅰️${assists}`);
+        if (cs > 0 && (pos === 'GOL' || pos === 'ZAG' || pos === 'LAT')) statParts.push(`🧤${cs} CS`);
+        if (jogos > 0) statParts.push(`${jogos}j`);
+        const statsStr = statParts.length ? statParts.join(' · ') : 'Sem dados';
 
         row.innerHTML = `
             <div class="player-main-info">
