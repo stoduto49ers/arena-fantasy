@@ -154,6 +154,24 @@
                     </svg>
                     <span class="tooltip">Configurações da Liga</span>
                 </div>
+
+                <!-- Jogos do Brasileirão -->
+                <div class="nav-item" data-tab="jogos-tab">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polygon points="10 8 16 12 10 16 10 8"></polygon>
+                    </svg>
+                    <span class="tooltip">Jogos do Brasileirão</span>
+                </div>
+
+                <!-- Notícias -->
+                <div class="nav-item" data-tab="news-tab">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path>
+                        <path d="M18 14h-8"></path><path d="M15 18h-5"></path><path d="M10 6h8v4h-8V6z"></path>
+                    </svg>
+                    <span class="tooltip">Notícias</span>
+                </div>
             </nav>
             
             <!-- User Profile Avatar (bottom) -->
@@ -860,7 +878,43 @@
 
                     </div>
                 </section>
-                
+
+                <!-- --- TAB: JOGOS DO BRASILEIRÃO --- -->
+                <section class="tab-content" id="jogos-tab">
+                    <div class="glass-panel" style="margin-bottom:16px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                            <h3><i class="fa-solid fa-futbol" style="color:var(--neon-green);"></i> Rodada Atual — Brasileirão 2026</h3>
+                            <button class="action-btn primary" onclick="Jogos.load()">
+                                <i class="fa-solid fa-rotate"></i> Atualizar
+                            </button>
+                        </div>
+                        <p style="font-size:12px; color:var(--text-muted); margin-top:6px;">Acompanhe os jogos para ajustar sua escalação antes do fechamento.</p>
+                    </div>
+                    <div id="jogos-loading" style="display:none; text-align:center; padding:40px; color:var(--text-muted);">
+                        <i class="fa-solid fa-spinner fa-spin" style="font-size:24px;"></i>
+                        <p style="margin-top:12px;">Buscando jogos...</p>
+                    </div>
+                    <div id="jogos-list"></div>
+                </section>
+
+                <!-- --- TAB: NOTÍCIAS --- -->
+                <section class="tab-content" id="news-tab">
+                    <div class="glass-panel" style="margin-bottom:16px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <h3><i class="fa-solid fa-newspaper" style="color:var(--neon-blue);"></i> Notícias do Brasileirão</h3>
+                            <button class="action-btn primary" onclick="News.load()">
+                                <i class="fa-solid fa-rotate"></i> Atualizar
+                            </button>
+                        </div>
+                        <p style="font-size:12px; color:var(--text-muted); margin-top:6px;">Últimas notícias para embasar escalação e waiver.</p>
+                    </div>
+                    <div id="news-loading" style="display:none; text-align:center; padding:40px; color:var(--text-muted);">
+                        <i class="fa-solid fa-spinner fa-spin" style="font-size:24px;"></i>
+                        <p style="margin-top:12px;">Buscando notícias...</p>
+                    </div>
+                    <div id="news-list"></div>
+                </section>
+
             </div>
         </main>
         
@@ -911,6 +965,8 @@
     <script src="waiver.js"></script>
     <script src="trades.js"></script>
     <script src="profile.js"></script>
+    <script src="jogos.js"></script>
+    <script src="news.js"></script>
     <script src="app.js"></script>
     <script src="auth.js"></script>
 </body>

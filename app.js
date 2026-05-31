@@ -2,12 +2,7 @@
 let players = JSON.parse(JSON.stringify(PLAYERS_DATABASE));
 
 // --- ESTADO DO JOGO ---
-const LEAGUE_TEAMS = [
-    { id: 'user', name: "Você (Parças FC)", short: "PAR", avatar: "P", points: 0.0, wins: 0, losses: 0, color: "var(--neon-blue)" },
-    { id: 'botA', name: "Galácticos BR", short: "GAL", avatar: "G", points: 0.0, wins: 0, losses: 0, color: "var(--neon-purple)" },
-    { id: 'botB', name: "Mitadores FC", short: "MIT", avatar: "M", points: 0.0, wins: 0, losses: 0, color: "var(--neon-orange)" },
-    { id: 'botC', name: "Chapéu Cruzado", short: "CHA", avatar: "C", points: 0.0, wins: 0, losses: 0, color: "var(--neon-green)" }
-];
+const LEAGUE_TEAMS = []; // Substituído por managers reais do banco
 
 let activeTab = "dashboard-tab";
 let userBudget = ORCAMENTO_INICIAL; // Orçamento em D$ para o restante da temporada
@@ -180,6 +175,13 @@ function setupTabListeners() {
     if (logoBtn) {
         logoBtn.addEventListener("click", () => switchTab("dashboard-tab"));
     }
+
+    // Botão de perfil — aqui pois profile.js já carregou antes de app.js
+    document.getElementById('open-profile-btn')?.addEventListener('click', () => {
+        if (window._currentUser && typeof Profile !== 'undefined') {
+            Profile.open(window._currentUser);
+        }
+    });
 }
 
 function switchTab(tabId) {
@@ -229,6 +231,8 @@ function switchTab(tabId) {
         if (tabId === "market-tab" && typeof Waiver !== "undefined") Waiver.init(user);
         if (tabId === "trades-tab" && typeof Trades !== "undefined") Trades.init(user);
     }
+    if (tabId === "jogos-tab" && typeof Jogos !== "undefined") Jogos.load();
+    if (tabId === "news-tab" && typeof News !== "undefined") News.load();
 }
 
 // --- HEADER ACTIONS ---
@@ -532,36 +536,7 @@ function renderChat() {
 }
 
 function triggerBotChatReply(userMsg) {
-    // Escolhe um bot aleatório para responder
-    const botIndex = Math.floor(Math.random() * (LEAGUE_TEAMS.length - 1)) + 1; // 1, 2, ou 3
-    const bot = LEAGUE_TEAMS[botIndex];
-    
-    let botReplies = [
-        "Ih rapaz... Falou muito e jogou pouco na rodada passada.",
-        "Projeção não ganha jogo! Quero ver pontuar no campinho.",
-        "Sei não hein, acho que você gastou muita cartoleta à toa.",
-        "Vou até ficar quieto pra não passar vergonha depois.",
-        "Minha escalação secreta vai desbancar a sua!",
-        "Chora menos e escala mais!"
-    ];
-
-    if (userMsg.includes("Hulk") || userMsg.includes("Pedro")) {
-        botReplies = [
-            "Pedro tá com cara de que vai fazer gol contra hoje haha",
-            "Hulk é garantia de pontos. Pena que eu não consegui draftar ele antes."
-        ];
-    } else if (userMsg === "gif") {
-        botReplies = [
-            "Kkkkkkkk que GIF é esse!",
-            "Típico meme de quem vai perder a liga"
-        ];
-    }
-
-    const randomReply = botReplies[Math.floor(Math.random() * botReplies.length)];
-
-    setTimeout(() => {
-        addChatMessage(bot.name, randomReply, bot.avatar, bot.color, false);
-    }, 1500 + Math.random() * 1000);
+    // Bots removidos — chat agora é entre managers reais
 }
 
 // --- DRAFT ROOM SIMULATOR ---

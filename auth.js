@@ -174,10 +174,5 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (logoutBtn) logoutBtn.addEventListener('click', () => Auth.signOut());
 
-    // Perfil
-    document.getElementById('open-profile-btn')?.addEventListener('click', () => {
-        if (window._currentUser) Profile.open(window._currentUser);
-    });
-
     Auth.init();
 });
