@@ -1134,24 +1134,25 @@ function changeFormation(newFormation) {
 
 function updateLineupStats() {
     let startersCount = 0;
+    let benchCount = 0;
+    let injuredCount = 0;
     let proj = 0.0;
     const starterPositions = ["GOL", "ZAG", "LAT", "MEI", "ATA"];
-    
-    starterPositions.forEach(pos => {
-        const arr = lineup[pos];
-        if (arr) {
-            arr.forEach(p => {
-                if (p) {
-                    startersCount++;
-                    proj += p.projPoints;
-                }
-            });
-        }
-    });
 
-    document.getElementById("lineup-count-val").innerText = `${startersCount} / 11`;
-    document.getElementById("lineup-cost-val").innerText = `${MOEDA_LABEL} ${userBudget.toFixed(2)}`;
-    document.getElementById("lineup-projection-val").innerText = `${proj.toFixed(2)} pts`;
+    starterPositions.forEach(pos => {
+        (lineup[pos] || []).forEach(p => {
+            if (p) { startersCount++; proj += p.projPoints || 0; }
+        });
+    });
+    (lineup.RESERVAS || []).forEach(p => { if (p) benchCount++; });
+    (lineup.LESOES || []).forEach(p => { if (p) injuredCount++; });
+
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+    set("lineup-count-val", `${startersCount} / 11`);
+    set("bench-count-val", `${benchCount} / 7`);
+    set("injured-count-val", `${injuredCount} / 2`);
+    set("lineup-cost-val", `${MOEDA_LABEL} ${userBudget.toFixed(2)}`);
+    set("lineup-projection-val", `${proj.toFixed(2)} pts`);
 }
 
 function renderPitch() {

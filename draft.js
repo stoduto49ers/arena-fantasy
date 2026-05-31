@@ -324,41 +324,49 @@ const Draft = {
         const grid = document.getElementById('draft-board-grid');
         if (!grid) return;
 
-        const order = Draft.getPickOrder();
         const totalManagers = Draft.state.managers.length;
         if (totalManagers === 0) {
             grid.innerHTML = '<p style="color:var(--text-muted); padding:16px;">Aguardando managers entrarem na liga...</p>';
             return;
         }
 
-        // Cabeçalho com nomes dos managers
+        const managers = Draft.state.managers;
+        const currentIdx = Draft.state.draftState?.current_pick_index || 0;
+
+        // Cabeçalho — colunas fixas na ordem original
         let html = '<div class="draft-board-row draft-board-header">';
-        html += '<div class="draft-board-cell draft-board-round-label">Rodada</div>';
-        Draft.state.managers.forEach(m => {
+        html += '<div class="draft-board-cell draft-board-round-label">Rd</div>';
+        managers.forEach(m => {
             const isMe = m.id === Draft.state.currentUser?.id;
             html += `<div class="draft-board-cell draft-board-manager ${isMe ? 'is-me' : ''}">${m.team_name}</div>`;
         });
         html += '</div>';
 
-        // Linhas por rodada
+        // Linhas por rodada — snake: rodadas pares de trás para frente
         for (let round = 0; round < Draft.TOTAL_ROUNDS; round++) {
             html += '<div class="draft-board-row">';
             html += `<div class="draft-board-cell draft-board-round-label">${round + 1}</div>`;
 
-            const isEvenRound = round % 2 !== 0;
-            const roundManagers = isEvenRound
-                ? [...Draft.state.managers].reverse()
-                : [...Draft.state.managers];
+            const isSnakeReverse = round % 2 !== 0;
 
-            roundManagers.forEach(m => {
-                const pickNum = round * totalManagers + roundManagers.indexOf(m) + 1;
+            // Para cada coluna (manager), descobre qual pick number corresponde
+            managers.forEach((m, colIdx) => {
+                // Na rodada snake inversa, a posição na rodada é invertida
+                const posInRound = isSnakeReverse ? (totalManagers - 1 - colIdx) : colIdx;
+                const pickNum = round * totalManagers + posInRound + 1;
+                const globalIdx = pickNum - 1;
+
                 const pick = Draft.state.picks.find(p => p.pick_number === pickNum);
-                const slot = order[pickNum - 1];
-                const isCurrentPick = (Draft.state.draftState?.current_pick_index || 0) === pickNum - 1;
-                const isMySlot = slot?.managerId === Draft.state.currentUser?.id;
+                const isCurrentPick = currentIdx === globalIdx;
+
+                // Slot pertence a este manager? Na rodada normal: colIdx. Na inversa: totalManagers-1-colIdx
+                const managerForSlot = isSnakeReverse
+                    ? managers[totalManagers - 1 - colIdx]
+                    : managers[colIdx];
+                const isMySlot = managerForSlot?.id === Draft.state.currentUser?.id;
 
                 let cellClass = 'draft-board-cell draft-board-pick';
-                if (isCurrentPick) cellClass += ' current-pick';
+                if (isCurrentPick && Draft.isDraftActive()) cellClass += ' current-pick';
                 if (isMySlot) cellClass += ' my-pick-slot';
 
                 if (pick) {
@@ -378,8 +386,6 @@ const Draft = {
         }
 
         grid.innerHTML = html;
-
-        // Scroll para a pick atual
         const current = grid.querySelector('.current-pick');
         if (current) current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     },
