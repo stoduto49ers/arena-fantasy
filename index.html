@@ -125,7 +125,12 @@
             <!-- Tab: Jogos -->
             <div id="home-content-jogos" style="display:none;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-                    <h2 style="font-size:18px;">Jogos do Brasileirão</h2>
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <button class="action-btn" style="padding:6px 12px; font-size:12px;" onclick="LeagueSystem.showHomeTab('ligas')">
+                            <i class="fa-solid fa-arrow-left"></i> Voltar
+                        </button>
+                        <h2 style="font-size:18px;">Jogos do Brasileirão</h2>
+                    </div>
                     <button class="action-btn primary" onclick="Jogos.load()">
                         <i class="fa-solid fa-rotate"></i> Atualizar
                     </button>
@@ -140,7 +145,12 @@
             <!-- Tab: Notícias -->
             <div id="home-content-noticias" style="display:none;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-                    <h2 style="font-size:18px;">Notícias do Brasileirão</h2>
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <button class="action-btn" style="padding:6px 12px; font-size:12px;" onclick="LeagueSystem.showHomeTab('ligas')">
+                            <i class="fa-solid fa-arrow-left"></i> Voltar
+                        </button>
+                        <h2 style="font-size:18px;">Notícias do Brasileirão</h2>
+                    </div>
                     <button class="action-btn primary" onclick="News.load()">
                         <i class="fa-solid fa-rotate"></i> Atualizar
                     </button>

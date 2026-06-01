@@ -305,7 +305,19 @@ const LeagueConfig = {
         const name = document.getElementById('cfg-league-name')?.value?.trim();
         const year = parseInt(document.getElementById('cfg-season-year')?.value);
         if (!name) { LeagueConfig.showToast('Digite o nome da liga.', 'error'); return; }
+
+        // Salva na league_config
         await LeagueConfig.saveConfig({ league_name: name, season_year: year });
+
+        // Sincroniza também na tabela leagues (usada na busca)
+        const uid = LeagueConfig.state.currentUser?.id;
+        if (uid) {
+            await window.supabaseClient
+                .from('leagues')
+                .update({ name })
+                .eq('commissioner_id', uid);
+        }
+
         LeagueConfig.showToast('Liga atualizada!', 'success');
     },
 
