@@ -2607,3 +2607,94 @@ body {
     font-size: 13px;
     margin-bottom: 6px;
 }
+
+
+/* =============================================
+   HOME PÚBLICA DE LIGAS
+   ============================================= */
+
+.home-tab-btn {
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: var(--text-muted);
+    font-family: var(--font-primary);
+    font-size: 13px;
+    font-weight: 700;
+    padding: 14px 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: var(--transition-smooth);
+}
+
+.home-tab-btn:hover { color: var(--text-secondary); }
+
+.home-tab-btn.active {
+    color: var(--neon-blue);
+    border-bottom-color: var(--neon-blue);
+}
+
+.league-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    cursor: pointer;
+    margin-bottom: 10px;
+    transition: var(--transition-smooth);
+}
+
+.league-card:hover {
+    border-color: var(--neon-blue);
+    background: rgba(0,242,254,0.05);
+    transform: translateX(4px);
+}
+
+.league-card-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: var(--grad-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bg-darkest);
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.league-card-name {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.league-card-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.league-card-enter {
+    margin-left: auto;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--neon-blue);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Separador no nav */
+#back-to-home-btn {
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 12px;
+    margin-bottom: 4px;
+    color: var(--text-muted);
+}
+#back-to-home-btn:hover { color: var(--neon-blue); }

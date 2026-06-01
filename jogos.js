@@ -78,10 +78,10 @@ const Jogos = {
             { home: 'Bahia',         away: 'Botafogo',     homeScore: 2, awayScore: 1, date: '2026-05-30', time: '17:30', stadium: 'Arena Fonte Nova',    status: 'finished', rodada: 18 },
             { home: 'Santos',        away: 'Vitória',      homeScore: 3, awayScore: 1, date: '2026-05-30', time: '20:00', stadium: 'Vila Belmiro',        status: 'finished', rodada: 18 },
             { home: 'Bragantino',    away: 'Internacional',homeScore: 3, awayScore: 1, date: '2026-05-31', time: '11:00', stadium: 'Nabi Abi Chedid',    status: 'finished', rodada: 18 },
-            { home: 'Vasco',         away: 'Atlético-MG',  homeScore: null, awayScore: null, date: '2026-05-31', time: '16:00', stadium: 'São Januário',  status: 'scheduled', rodada: 18 },
+            { home: 'Vasco',         away: 'Atlético-MG',  homeScore: 0, awayScore: 1, date: '2026-05-31', time: '16:00', stadium: 'São Januário',  status: 'finished', rodada: 18 },
             { home: 'Palmeiras',     away: 'Chapecoense',  homeScore: 1, awayScore: 0, date: '2026-05-31', time: '20:30', stadium: 'Allianz Parque',      status: 'finished', rodada: 18 },
-            { home: 'Cruzeiro',      away: 'Fluminense',   homeScore: null, awayScore: null, date: '2026-05-31', time: '20:30', stadium: 'Arena MRV',     status: 'scheduled', rodada: 18 },
-            { home: 'Remo',          away: 'São Paulo',    homeScore: null, awayScore: null, date: '2026-05-31', time: '20:30', stadium: 'Mangueirão',    status: 'scheduled', rodada: 18 },
+            { home: 'Cruzeiro',      away: 'Fluminense',   homeScore: 1, awayScore: 1, date: '2026-05-31', time: '20:30', stadium: 'Mineirão',            status: 'finished', rodada: 18 },
+            { home: 'Remo',          away: 'São Paulo',    homeScore: 1, awayScore: 0, date: '2026-05-31', time: '20:30', stadium: 'Mangueirão',          status: 'finished', rodada: 18 },
             // Rodada 17 — encerrada
             { home: 'São Paulo',     away: 'Botafogo',     homeScore: 1, awayScore: 1, date: '2026-05-22', time: '', stadium: 'MorumBIS',              status: 'finished', rodada: 17 },
             { home: 'Vitória',       away: 'Internacional',homeScore: 2, awayScore: 0, date: '2026-05-22', time: '', stadium: 'Barradão',             status: 'finished', rodada: 17 },

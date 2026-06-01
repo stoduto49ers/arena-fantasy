@@ -24,16 +24,12 @@ const Auth = {
     async onLoginSuccess(user) {
         await Auth.ensureManagerProfile(user);
         Auth.hideAuthScreen();
-        window._currentUser = user;
-
-        // Inicializa sistema de ligas — decide se vai pro lobby ou direto pro app
+        // LeagueSystem controla toda a navegação a partir daqui
         if (typeof LeagueSystem !== 'undefined') {
             await LeagueSystem.init(user);
         } else {
-            // Fallback: entra direto
+            window._currentUser = user;
             if (typeof initApp === 'function') initApp(user);
-            if (typeof Dashboard !== 'undefined') Dashboard.init(user);
-            if (typeof Draft !== 'undefined') Draft.init(user);
         }
     },
 

@@ -1,108 +1,138 @@
 // =============================================
 // ARENA FANTASY - Sistema de Ligas
-// Tela de lobby após login, antes do app
+// Tela inicial pública → seleciona liga → app da liga
 // =============================================
 
 const LeagueSystem = {
 
     state: {
-        currentUser: null,
-        myLeagues: [],
-        currentLeague: null,
+        user: null,
+        myMemberships: [],
+        activeMembership: null,
     },
 
     async init(user) {
-        LeagueSystem.state.currentUser = user;
-        await LeagueSystem.loadMyLeagues();
-
-        if (LeagueSystem.state.myLeagues.length > 0) {
-            // Seleciona automaticamente a primeira liga aprovada
-            const approved = LeagueSystem.state.myLeagues.filter(m => m.status === 'approved');
-            if (approved.length > 0) {
-                LeagueSystem.enterLeague(approved[0]);
-                return;
-            }
-        }
-
-        // Sem liga aprovada — mostra lobby
-        LeagueSystem.showLobby();
+        LeagueSystem.state.user = user;
+        window._currentUser = user;
+        await LeagueSystem.loadMemberships();
+        LeagueSystem.showHome();
     },
 
-    async loadMyLeagues() {
+    async loadMemberships() {
         const { data } = await window.supabaseClient
             .from('league_members')
-            .select('*, league:league_id(id, name, commissioner_id, max_teams, invite_code)')
-            .eq('manager_id', LeagueSystem.state.currentUser.id);
-        LeagueSystem.state.myLeagues = data || [];
+            .select('*, league:league_id(id, name, commissioner_id, max_teams)')
+            .eq('manager_id', LeagueSystem.state.user.id);
+        LeagueSystem.state.myMemberships = data || [];
     },
 
-    enterLeague(membership) {
-        window._currentLeague = membership.league;
-        LeagueSystem.hideLobby();
-        // Inicia o app
-        if (typeof initApp === 'function') initApp(LeagueSystem.state.currentUser);
-        if (typeof Dashboard !== 'undefined') Dashboard.init(LeagueSystem.state.currentUser);
-        if (typeof Draft !== 'undefined') Draft.init(LeagueSystem.state.currentUser);
-    },
-
-    showLobby() {
-        document.getElementById('league-lobby').style.display = 'flex';
+    // Mostra a tela home pública (fora de qualquer liga)
+    showHome() {
+        document.getElementById('league-home').style.display = 'flex';
         document.getElementById('app-container-wrapper').style.display = 'none';
-        LeagueSystem.renderLobby();
+        LeagueSystem.renderHome();
+        // Jogos e notícias ficam disponíveis na home
+        if (typeof Jogos !== 'undefined') Jogos.load();
     },
 
-    hideLobby() {
-        document.getElementById('league-lobby').style.display = 'none';
+    // Entra em uma liga — mostra o app completo
+    enterLeague(membership) {
+        LeagueSystem.state.activeMembership = membership;
+        window._currentLeague = membership.league;
+
+        document.getElementById('league-home').style.display = 'none';
         document.getElementById('app-container-wrapper').style.display = 'grid';
+
+        // Inicializa todos os módulos da liga
+        const user = LeagueSystem.state.user;
+        if (typeof initApp === 'function') initApp(user);
+        if (typeof Dashboard !== 'undefined') Dashboard.init(user);
+        if (typeof Draft !== 'undefined') Draft.init(user);
+        if (typeof Waiver !== 'undefined') Waiver.init(user);
     },
 
-    renderLobby() {
-        const pending = LeagueSystem.state.myLeagues.filter(m => m.status === 'pending');
-        const pendingEl = document.getElementById('lobby-pending-list');
-        if (pendingEl) {
-            if (pending.length > 0) {
-                pendingEl.innerHTML = pending.map(m => `
-                    <div class="lobby-pending-item">
-                        <i class="fa-solid fa-clock" style="color:var(--neon-orange);"></i>
-                        <span>Aguardando aprovação em <strong>${m.league?.name}</strong></span>
-                    </div>`).join('');
-                document.getElementById('lobby-pending-section').style.display = '';
+    // Volta para a tela home
+    leaveLeague() {
+        LeagueSystem.state.activeMembership = null;
+        window._currentLeague = null;
+        document.getElementById('app-container-wrapper').style.display = 'none';
+        LeagueSystem.showHome();
+    },
+
+    renderHome() {
+        const approved = LeagueSystem.state.myMemberships.filter(m => m.status === 'approved');
+        const pending  = LeagueSystem.state.myMemberships.filter(m => m.status === 'pending');
+
+        // Minhas ligas aprovadas
+        const leaguesEl = document.getElementById('home-my-leagues');
+        if (leaguesEl) {
+            if (approved.length === 0) {
+                leaguesEl.innerHTML = `<p style="color:var(--text-muted); font-size:13px;">
+                    Você ainda não participa de nenhuma liga. Busque uma abaixo.
+                </p>`;
             } else {
-                document.getElementById('lobby-pending-section').style.display = 'none';
+                leaguesEl.innerHTML = approved.map(m => `
+                    <div class="league-card" onclick="LeagueSystem.enterLeague(${JSON.stringify(m).replace(/"/g, '&quot;')})">
+                        <div class="league-card-icon">
+                            <i class="fa-solid fa-trophy"></i>
+                        </div>
+                        <div class="league-card-info">
+                            <div class="league-card-name">${m.league?.name}</div>
+                            <div class="league-card-meta">Até ${m.league?.max_teams || 16} times</div>
+                        </div>
+                        <div class="league-card-enter">
+                            Entrar <i class="fa-solid fa-arrow-right"></i>
+                        </div>
+                    </div>`).join('');
+            }
+        }
+
+        // Pendentes
+        const pendingEl = document.getElementById('home-pending');
+        if (pendingEl) {
+            pendingEl.style.display = pending.length ? '' : 'none';
+            if (pending.length) {
+                pendingEl.innerHTML = `<div style="margin-bottom:8px; font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Aguardando aprovação</div>` +
+                    pending.map(m => `
+                    <div style="display:flex; align-items:center; gap:10px; padding:8px 12px;
+                        background:rgba(255,159,67,0.06); border:1px solid rgba(255,159,67,0.2);
+                        border-radius:8px; margin-bottom:6px; font-size:13px;">
+                        <i class="fa-solid fa-clock" style="color:var(--neon-orange);"></i>
+                        <span>Solicitação para <strong>${m.league?.name}</strong> em análise pelo comissário.</span>
+                    </div>`).join('');
             }
         }
     },
 
-    async searchLeagues(query) {
-        if (!query.trim()) return;
+    async searchLeagues() {
+        const q = document.getElementById('home-search-input')?.value?.trim();
+        const resultEl = document.getElementById('home-search-results');
+        if (!resultEl) return;
+        if (!q) { resultEl.innerHTML = ''; return; }
+
         const { data } = await window.supabaseClient
             .from('leagues')
             .select('id, name, max_teams')
-            .ilike('name', `%${query}%`)
+            .ilike('name', `%${q}%`)
             .limit(10);
 
-        const resultEl = document.getElementById('lobby-search-results');
-        if (!resultEl) return;
-
         if (!data?.length) {
-            resultEl.innerHTML = '<p style="color:var(--text-muted); font-size:13px; padding:8px 0;">Nenhuma liga encontrada.</p>';
+            resultEl.innerHTML = `<p style="color:var(--text-muted); font-size:13px; padding:8px 0;">Nenhuma liga encontrada.</p>`;
             return;
         }
 
-        // Verifica quais já tenho solicitação
-        const myLeagueIds = LeagueSystem.state.myLeagues.map(m => m.league_id || m.league?.id);
-
-        resultEl.innerHTML = data.map(league => {
-            const alreadyRequested = myLeagueIds.includes(league.id);
+        const myIds = LeagueSystem.state.myMemberships.map(m => m.league_id || m.league?.id);
+        resultEl.innerHTML = data.map(l => {
+            const joined = myIds.includes(l.id);
             return `<div class="lobby-league-row">
                 <div>
-                    <div style="font-weight:700; font-size:14px;">${league.name}</div>
-                    <div style="font-size:11px; color:var(--text-muted);">Até ${league.max_teams} times</div>
+                    <div style="font-weight:700; font-size:14px;">${l.name}</div>
+                    <div style="font-size:11px; color:var(--text-muted);">Até ${l.max_teams} times</div>
                 </div>
-                ${alreadyRequested
-                    ? `<span style="font-size:12px; color:var(--text-muted);">Já solicitado</span>`
+                ${joined
+                    ? `<span style="font-size:12px; color:var(--text-muted); padding:6px 10px;">Já solicitado</span>`
                     : `<button class="action-btn primary" style="padding:6px 14px; font-size:12px;"
-                        onclick="LeagueSystem.requestJoin('${league.id}', '${league.name}')">
+                        onclick="LeagueSystem.requestJoin('${l.id}', '${l.name}')">
                         <i class="fa-solid fa-paper-plane"></i> Solicitar
                        </button>`
                 }
@@ -113,47 +143,55 @@ const LeagueSystem = {
     async requestJoin(leagueId, leagueName) {
         const { error } = await window.supabaseClient
             .from('league_members')
-            .insert({
-                league_id: leagueId,
-                manager_id: LeagueSystem.state.currentUser.id,
-                status: 'pending'
-            });
+            .insert({ league_id: leagueId, manager_id: LeagueSystem.state.user.id, status: 'pending' });
 
-        if (error) {
-            LeagueSystem.showToast('Erro ao solicitar. Tente novamente.', 'error');
-            return;
-        }
+        if (error) { LeagueSystem.toast('Erro ao solicitar. Tente novamente.', 'error'); return; }
 
-        LeagueSystem.showToast(`Solicitação enviada para ${leagueName}!`, 'success');
-        await LeagueSystem.loadMyLeagues();
-        LeagueSystem.renderLobby();
-        document.getElementById('lobby-search-results').innerHTML = '';
-        document.getElementById('lobby-search-input').value = '';
+        LeagueSystem.toast(`Solicitação enviada para "${leagueName}"!`, 'success');
+        await LeagueSystem.loadMemberships();
+        LeagueSystem.renderHome();
+        document.getElementById('home-search-results').innerHTML = '';
+        document.getElementById('home-search-input').value = '';
     },
 
-    // Chamado pelo comissário para aprovar/rejeitar
     async approveRequest(memberId, approved) {
-        await window.supabaseClient
+        const { error } = await window.supabaseClient
             .from('league_members')
-            .update({
-                status: approved ? 'approved' : 'rejected',
-                approved_at: approved ? new Date().toISOString() : null
-            })
+            .update({ status: approved ? 'approved' : 'rejected', approved_at: approved ? new Date().toISOString() : null })
             .eq('id', memberId);
-
-        // Recarrega solicitações na config
-        if (typeof LeagueConfig !== 'undefined') {
-            LeagueConfig.loadPendingRequests?.();
+        if (!error) {
+            LeagueSystem.toast(approved ? 'Manager aprovado!' : 'Solicitação recusada.', approved ? 'success' : 'error');
+            if (typeof LeagueConfig !== 'undefined') LeagueConfig.loadPendingRequests?.();
         }
-        LeagueSystem.showToast(approved ? 'Manager aprovado!' : 'Solicitação recusada.', approved ? 'success' : 'error');
     },
 
-    showToast(msg, type = 'success') {
-        let t = document.getElementById('league-toast');
-        if (!t) { t = document.createElement('div'); t.id = 'league-toast'; document.body.appendChild(t); }
+    toast(msg, type = 'success') {
+        let t = document.getElementById('ls-toast');
+        if (!t) { t = document.createElement('div'); t.id = 'ls-toast'; document.body.appendChild(t); }
         t.textContent = msg;
-        t.className = `league-toast league-toast-${type}`;
+        t.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:99999;padding:12px 20px;
+            border-radius:10px;font-size:13px;font-weight:700;
+            background:${type==='success'?'rgba(0,255,135,0.15)':'rgba(255,71,87,0.15)'};
+            color:${type==='success'?'var(--neon-green)':'var(--neon-red)'};
+            border:1px solid ${type==='success'?'rgba(0,255,135,0.3)':'rgba(255,71,87,0.3)'};`;
         t.style.display = 'block';
-        setTimeout(() => { t.style.display = 'none'; }, 3000);
+        setTimeout(() => { if (t) t.style.display = 'none'; }, 3000);
+    }
+};
+
+// Funções de tabs da home
+LeagueSystem.showHomeTab = function(tab) {
+    ['ligas', 'jogos', 'noticias'].forEach(t => {
+        document.getElementById(`home-content-${t}`).style.display = t === tab ? '' : 'none';
+        const btn = document.getElementById(`home-tab-${t}`);
+        if (btn) btn.classList.toggle('active', t === tab);
+    });
+    if (tab === 'jogos' && typeof Jogos !== 'undefined') Jogos.load();
+    if (tab === 'noticias' && typeof News !== 'undefined') News.load();
+
+    // Exibe email do usuário
+    const emailEl = document.getElementById('home-user-email');
+    if (emailEl && LeagueSystem.state.user) {
+        emailEl.textContent = LeagueSystem.state.user.email;
     }
 };
