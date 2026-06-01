@@ -19,11 +19,29 @@ const LeagueSystem = {
     },
 
     async loadMemberships() {
-        const { data } = await window.supabaseClient
+        // Busca memberships sem join (FK foi removida)
+        const { data: members } = await window.supabaseClient
             .from('league_members')
-            .select('*, league:league_id(id, name, commissioner_id, max_teams)')
+            .select('*')
             .eq('manager_id', LeagueSystem.state.user.id);
-        LeagueSystem.state.myMemberships = data || [];
+
+        if (!members?.length) {
+            LeagueSystem.state.myMemberships = [];
+            return;
+        }
+
+        // Busca dados das ligas separadamente
+        const leagueIds = [...new Set(members.map(m => m.league_id))];
+        const { data: leagues } = await window.supabaseClient
+            .from('leagues')
+            .select('id, name, commissioner_id, max_teams')
+            .in('id', leagueIds);
+
+        // Combina manualmente
+        LeagueSystem.state.myMemberships = members.map(m => ({
+            ...m,
+            league: leagues?.find(l => l.id === m.league_id) || null
+        }));
     },
 
     // Mostra a tela home pública (fora de qualquer liga)
