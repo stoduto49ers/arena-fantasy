@@ -506,12 +506,6 @@ const Jogos = {
                 </button>
             </div>
 
-            ${pauseRounds ? `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;margin-bottom:14px;
-                background:rgba(255,159,67,0.06);border:1px solid rgba(255,159,67,0.2);border-radius:8px;">
-                <i class="fa-solid fa-globe" style="color:var(--neon-orange);"></i>
-                <span style="font-size:12px;color:var(--text-muted);">Pausa para a Copa do Mundo (junho/julho 2026). Retorno previsto em julho/agosto.</span>
-            </div>` : ''}
-
             ${games.map(g => {
                 const hc = clubMap[g.home]||'';
                 const ac = clubMap[g.away]||'';
