@@ -19,6 +19,9 @@ const LeagueConfig = {
         await LeagueConfig.loadGroups();
         LeagueConfig.checkCommissioner();
         LeagueConfig.render();
+        if (LeagueConfig.state.isCommissioner) {
+            LeagueConfig.loadPendingRequests();
+        }
     },
 
     async loadConfig() {
@@ -53,6 +56,42 @@ const LeagueConfig = {
         const firstManager = LeagueConfig.state.managers[0];
         LeagueConfig.state.isCommissioner =
             cfg?.commissioner_id === uid || firstManager?.id === uid;
+    },
+
+    // --- Salva uma seção da config ---
+    async loadPendingRequests() {
+        const container = document.getElementById('cfg-pending-requests');
+        if (!container) return;
+
+        const { data } = await window.supabaseClient
+            .from('league_members')
+            .select('id, manager_id, requested_at, manager:manager_id(team_name, email)')
+            .eq('status', 'pending');
+
+        if (!data?.length) {
+            container.innerHTML = '<p style="color:var(--text-muted); font-size:13px;">Nenhuma solicitação pendente.</p>';
+            return;
+        }
+
+        container.innerHTML = data.map(req => `
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px;
+                border:1px solid var(--border-color); border-radius:var(--border-radius-sm);
+                background:rgba(255,255,255,0.02); margin-bottom:6px; flex-wrap:wrap; gap:8px;">
+                <div>
+                    <div style="font-weight:700; font-size:13px;">${req.manager?.team_name || '—'}</div>
+                    <div style="font-size:11px; color:var(--text-muted);">${req.manager?.email || ''}</div>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button class="action-btn primary" style="padding:6px 12px; font-size:12px;"
+                        onclick="LeagueSystem.approveRequest(${req.id}, true)">
+                        <i class="fa-solid fa-check"></i> Aprovar
+                    </button>
+                    <button class="action-btn" style="padding:6px 12px; font-size:12px; border-color:rgba(255,71,87,0.3); color:var(--neon-red);"
+                        onclick="LeagueSystem.approveRequest(${req.id}, false)">
+                        <i class="fa-solid fa-xmark"></i> Recusar
+                    </button>
+                </div>
+            </div>`).join('');
     },
 
     // --- Salva uma seção da config ---

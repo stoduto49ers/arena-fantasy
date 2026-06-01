@@ -24,18 +24,17 @@ const Auth = {
     async onLoginSuccess(user) {
         await Auth.ensureManagerProfile(user);
         Auth.hideAuthScreen();
-
-        // Guarda o user globalmente para acesso em qualquer módulo
         window._currentUser = user;
 
-        // Inicializa o app principal
-        if (typeof initApp === 'function') initApp(user);
-
-        // Inicializa o dashboard
-        if (typeof Dashboard !== 'undefined') Dashboard.init(user);
-
-        // Inicializa o draft
-        if (typeof Draft !== 'undefined') Draft.init(user);
+        // Inicializa sistema de ligas — decide se vai pro lobby ou direto pro app
+        if (typeof LeagueSystem !== 'undefined') {
+            await LeagueSystem.init(user);
+        } else {
+            // Fallback: entra direto
+            if (typeof initApp === 'function') initApp(user);
+            if (typeof Dashboard !== 'undefined') Dashboard.init(user);
+            if (typeof Draft !== 'undefined') Draft.init(user);
+        }
     },
 
     async ensureManagerProfile(user) {

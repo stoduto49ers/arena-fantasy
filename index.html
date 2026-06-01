@@ -71,6 +71,41 @@
         </div>
     </div>
 
+    <!-- === LOBBY DE LIGAS === -->
+    <div id="league-lobby" style="display:none;">
+        <div class="auth-card" style="max-width:480px;">
+            <div class="auth-logo">
+                <div class="logo-badge" style="margin:0 auto 16px; width:56px; height:56px; font-size:26px;">AF</div>
+                <h1>Arena Fantasy</h1>
+                <p>Selecione ou solicite entrada em uma liga</p>
+            </div>
+
+            <!-- Solicitações pendentes -->
+            <div id="lobby-pending-section" style="display:none; margin-bottom:20px;">
+                <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Aguardando Aprovação</div>
+                <div id="lobby-pending-list"></div>
+            </div>
+
+            <!-- Buscar liga -->
+            <div class="cfg-field" style="margin-bottom:16px;">
+                <label>Buscar Liga pelo Nome</label>
+                <div class="auth-input-wrap">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="lobby-search-input" placeholder="Ex: Arena Fantasy"
+                        oninput="LeagueSystem.searchLeagues(this.value)">
+                </div>
+            </div>
+            <div id="lobby-search-results" style="margin-bottom:16px;"></div>
+
+            <div style="text-align:center; padding:16px 0; border-top:1px solid var(--border-color); margin-top:8px;">
+                <p style="font-size:12px; color:var(--text-muted);">Não encontrou sua liga? Peça o nome ao comissário.</p>
+                <button class="action-btn" style="margin-top:10px;" onclick="Auth.signOut()">
+                    <i class="fa-solid fa-arrow-left"></i> Sair da conta
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- === APP PRINCIPAL === -->
     <div id="app-container-wrapper" style="display:none;">
     <div class="app-container">
@@ -146,15 +181,6 @@
                     <span class="tooltip">Trocas</span>
                 </div>
 
-                <!-- Liga Config -->
-                <div class="nav-item" data-tab="config-tab">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="3"></circle>
-                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                    </svg>
-                    <span class="tooltip">Configurações da Liga</span>
-                </div>
-
                 <!-- Jogos do Brasileirão -->
                 <div class="nav-item" data-tab="jogos-tab">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -171,6 +197,15 @@
                         <path d="M18 14h-8"></path><path d="M15 18h-5"></path><path d="M10 6h8v4h-8V6z"></path>
                     </svg>
                     <span class="tooltip">Notícias</span>
+                </div>
+
+                <!-- Liga Config (última aba) -->
+                <div class="nav-item" data-tab="config-tab">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                    <span class="tooltip">Configurações da Liga</span>
                 </div>
             </nav>
             
@@ -759,6 +794,14 @@
                 <section class="tab-content" id="config-tab">
                     <div class="config-grid">
 
+                        <!-- Solicitações de Entrada -->
+                        <div class="glass-panel commissioner-only" style="grid-column: 1 / -1;">
+                            <h3><i class="fa-solid fa-user-check" style="color:var(--neon-orange);"></i> Solicitações de Entrada</h3>
+                            <div id="cfg-pending-requests" style="margin-top:12px;">
+                                <p style="color:var(--text-muted); font-size:13px;">Nenhuma solicitação pendente.</p>
+                            </div>
+                        </div>
+
                         <!-- 1. Info da Liga -->
                         <div class="glass-panel commissioner-only">
                             <h3><i class="fa-solid fa-shield-halved" style="color:var(--neon-blue);"></i> Informações da Liga</h3>
@@ -977,6 +1020,7 @@
     <script src="profile.js"></script>
     <script src="jogos.js"></script>
     <script src="news.js"></script>
+    <script src="league-system.js"></script>
     <script src="app.js"></script>
     <script src="auth.js"></script>
 </body>
