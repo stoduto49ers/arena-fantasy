@@ -23,9 +23,11 @@ const LeagueSystem = {
         LeagueSystem.state.allLeagues = allLeagues || [];
 
         // 2. Busca memberships do usuário
-        const { data: members } = await window.supabaseClient
-            .from('league_members').select('id, league_id, status, approved_at')
+        const { data: members, error } = await window.supabaseClient
+            .from('league_members').select('id, league_id, status')
             .eq('manager_id', uid);
+
+        console.log('members:', members, 'error:', error);
 
         // 3. Combina: para cada membership, encontra a liga pelo ID
         LeagueSystem.state.myLeagues = (members || []).map(m => {
