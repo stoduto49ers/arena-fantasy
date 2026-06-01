@@ -88,14 +88,15 @@ const LeagueSystem = {
     },
 
     // Entra em uma liga — mostra o app completo
-    enterLeague(membership) {
-        LeagueSystem.state.activeMembership = membership;
-        window._currentLeague = membership.league;
+    enterLeague(leagueOrMembership) {
+        // Aceita tanto um objeto de liga direto quanto um membership
+        const league = leagueOrMembership.league || leagueOrMembership;
+        LeagueSystem.state.activeMembership = leagueOrMembership;
+        window._currentLeague = league;
 
         document.getElementById('league-home').style.display = 'none';
         document.getElementById('app-container-wrapper').style.display = 'grid';
 
-        // Inicializa todos os módulos da liga
         const user = LeagueSystem.state.user;
         if (typeof initApp === 'function') initApp(user);
         if (typeof Dashboard !== 'undefined') Dashboard.init(user);
@@ -117,7 +118,6 @@ const LeagueSystem = {
         // Carrega ligas disponíveis automaticamente
         setTimeout(() => LeagueSystem.searchLeagues(), 100);
 
-        // Minhas ligas aprovadas
         const leaguesEl = document.getElementById('home-my-leagues');
         if (leaguesEl) {
             if (approved.length === 0) {
@@ -125,23 +125,23 @@ const LeagueSystem = {
                     Você ainda não participa de nenhuma liga. Busque uma abaixo.
                 </p>`;
             } else {
-                leaguesEl.innerHTML = approved.map(m => `
-                    <div class="league-card" onclick="LeagueSystem.enterLeague(${JSON.stringify(m).replace(/"/g, '&quot;')})">
-                        <div class="league-card-icon">
-                            <i class="fa-solid fa-trophy"></i>
-                        </div>
+                leaguesEl.innerHTML = approved.map(m => {
+                    const leagueName = m.league?.name || m.league_name || '—';
+                    const maxTeams = m.league?.max_teams || 16;
+                    // Serializa apenas os campos necessários para evitar problemas de JSON
+                    const leagueData = JSON.stringify({ id: m.league_id, name: leagueName, max_teams: maxTeams, commissioner_id: m.league?.commissioner_id }).replace(/"/g, '&quot;');
+                    return `<div class="league-card" onclick="LeagueSystem.enterLeague(${leagueData})">
+                        <div class="league-card-icon"><i class="fa-solid fa-trophy"></i></div>
                         <div class="league-card-info">
-                            <div class="league-card-name">${m.league?.name}</div>
-                            <div class="league-card-meta">Até ${m.league?.max_teams || 16} times</div>
+                            <div class="league-card-name">${leagueName}</div>
+                            <div class="league-card-meta">Até ${maxTeams} times</div>
                         </div>
-                        <div class="league-card-enter">
-                            Entrar <i class="fa-solid fa-arrow-right"></i>
-                        </div>
-                    </div>`).join('');
+                        <div class="league-card-enter">Entrar <i class="fa-solid fa-arrow-right"></i></div>
+                    </div>`;
+                }).join('');
             }
         }
 
-        // Pendentes
         const pendingEl = document.getElementById('home-pending');
         if (pendingEl) {
             pendingEl.style.display = pending.length ? '' : 'none';
@@ -152,7 +152,7 @@ const LeagueSystem = {
                         background:rgba(255,159,67,0.06); border:1px solid rgba(255,159,67,0.2);
                         border-radius:8px; margin-bottom:6px; font-size:13px;">
                         <i class="fa-solid fa-clock" style="color:var(--neon-orange);"></i>
-                        <span>Solicitação para <strong>${m.league?.name}</strong> em análise pelo comissário.</span>
+                        <span>Solicitação para <strong>${m.league?.name || m.league_id}</strong> em análise.</span>
                     </div>`).join('');
             }
         }
@@ -175,27 +175,36 @@ const LeagueSystem = {
             return;
         }
 
-        const myIds = LeagueSystem.state.myMemberships.map(m => m.league_id || m.league?.id);
-        resultEl.innerHTML = data.map(l => {
-            const membership = LeagueSystem.state.myMemberships.find(m => (m.league_id || m.league?.id) === l.id);
-            const status = membership?.status;
-            let action = '';
-            if (status === 'approved') {
-                action = `<span style="font-size:12px; color:var(--neon-green); padding:6px 10px;">✓ Membro</span>`;
-            } else if (status === 'pending') {
-                action = `<span style="font-size:12px; color:var(--neon-orange); padding:6px 10px;">⏳ Aguardando</span>`;
-            } else {
-                action = `<button class="action-btn primary" style="padding:6px 14px; font-size:12px;"
-                    onclick="LeagueSystem.requestJoin('${l.id}', '${l.name}')">
-                    <i class="fa-solid fa-paper-plane"></i> Solicitar Entrada
-                   </button>`;
-            }
+        const myIds = LeagueSystem.state.myMemberships
+            .filter(m => m.status === 'approved')
+            .map(m => m.league_id);
+
+        // Remove da lista ligas que já é membro aprovado
+        const filtered = data.filter(l => !myIds.includes(l.id));
+
+        if (!filtered.length) {
+            resultEl.innerHTML = `<p style="color:var(--text-muted); font-size:13px; padding:8px 0;">Você já é membro de todas as ligas disponíveis.</p>`;
+            return;
+        }
+
+        const pendingIds = LeagueSystem.state.myMemberships
+            .filter(m => m.status === 'pending')
+            .map(m => m.league_id);
+
+        resultEl.innerHTML = filtered.map(l => {
+            const isPending = pendingIds.includes(l.id);
             return `<div class="lobby-league-row">
                 <div>
                     <div style="font-weight:700; font-size:14px;">${l.name}</div>
                     <div style="font-size:11px; color:var(--text-muted);">Até ${l.max_teams} times</div>
                 </div>
-                ${action}
+                ${isPending
+                    ? `<span style="font-size:12px; color:var(--neon-orange); padding:6px 10px;">⏳ Aguardando</span>`
+                    : `<button class="action-btn primary" style="padding:6px 14px; font-size:12px;"
+                        onclick="LeagueSystem.requestJoin('${l.id}', '${l.name}')">
+                        <i class="fa-solid fa-paper-plane"></i> Solicitar Entrada
+                       </button>`
+                }
             </div>`;
         }).join('');
     },
