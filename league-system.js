@@ -15,41 +15,7 @@ const LeagueSystem = {
         LeagueSystem.state.user = user;
         window._currentUser = user;
         await LeagueSystem.loadMemberships();
-
-        // Auto-aprova o comissário se ele ainda não estiver aprovado
-        await LeagueSystem.ensureCommissionerApproved();
-
         LeagueSystem.showHome();
-    },
-
-    async ensureCommissionerApproved() {
-        const uid = LeagueSystem.state.user.id;
-
-        // Verifica se é comissário de alguma liga
-        const { data: ownedLeagues } = await window.supabaseClient
-            .from('leagues')
-            .select('id, name')
-            .eq('commissioner_id', uid);
-
-        if (!ownedLeagues?.length) return;
-
-        for (const league of ownedLeagues) {
-            const alreadyApproved = LeagueSystem.state.myMemberships
-                .find(m => m.league_id === league.id && m.status === 'approved');
-            if (!alreadyApproved) {
-                await window.supabaseClient
-                    .from('league_members')
-                    .upsert({
-                        league_id: league.id,
-                        manager_id: uid,
-                        status: 'approved',
-                        approved_at: new Date().toISOString()
-                    }, { onConflict: 'league_id,manager_id' });
-            }
-        }
-
-        // Recarrega após garantir aprovação
-        await LeagueSystem.loadMemberships();
     },
 
     async loadMemberships() {
