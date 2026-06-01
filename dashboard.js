@@ -78,8 +78,10 @@ const Dashboard = {
 
     // Banner do topo
     renderBanner() {
-        const cfg = window._leagueConfig;
-        const leagueName = cfg?.league_name || 'Arena Fantasy';
+        // Prioriza o nome da liga ativa, depois league_config, depois fallback
+        const leagueName = window._currentLeague?.name
+            || window._leagueConfig?.league_name
+            || 'Minha Liga';
         const draftState = Draft.state.draftState;
         const isFinished = draftState?.is_finished;
         const isActive = draftState?.draft_status === 'active';

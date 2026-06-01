@@ -309,14 +309,21 @@ const LeagueConfig = {
         // Salva na league_config
         await LeagueConfig.saveConfig({ league_name: name, season_year: year });
 
-        // Sincroniza também na tabela leagues (usada na busca)
+        // Sincroniza também na tabela leagues (usada na busca pelos amigos)
         const uid = LeagueConfig.state.currentUser?.id;
         if (uid) {
-            await window.supabaseClient
+            const { error } = await window.supabaseClient
                 .from('leagues')
                 .update({ name })
                 .eq('commissioner_id', uid);
+            if (!error && window._currentLeague) {
+                window._currentLeague.name = name;
+            }
         }
+
+        // Atualiza o banner do dashboard
+        const bannerEl = document.getElementById('dashboard-league-name');
+        if (bannerEl) bannerEl.textContent = name;
 
         LeagueConfig.showToast('Liga atualizada!', 'success');
     },

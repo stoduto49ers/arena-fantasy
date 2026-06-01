@@ -62,6 +62,8 @@ const LeagueSystem = {
     renderHome() {
         const approved = LeagueSystem.state.myMemberships.filter(m => m.status === 'approved');
         const pending  = LeagueSystem.state.myMemberships.filter(m => m.status === 'pending');
+        // Carrega ligas disponíveis automaticamente
+        setTimeout(() => LeagueSystem.searchLeagues(), 100);
 
         // Minhas ligas aprovadas
         const leaguesEl = document.getElementById('home-my-leagues');
@@ -104,38 +106,44 @@ const LeagueSystem = {
         }
     },
 
-    async searchLeagues() {
+    async searchLeagues(forceShowAll = false) {
         const q = document.getElementById('home-search-input')?.value?.trim();
         const resultEl = document.getElementById('home-search-results');
         if (!resultEl) return;
-        if (!q) { resultEl.innerHTML = ''; return; }
 
-        const { data } = await window.supabaseClient
-            .from('leagues')
-            .select('id, name, max_teams')
-            .ilike('name', `%${q}%`)
-            .limit(10);
+        // Busca todas as ligas se campo vazio OU busca pelo termo
+        let query = window.supabaseClient.from('leagues').select('id, name, max_teams');
+        if (q) {
+            query = query.ilike('name', `%${q}%`);
+        }
+        const { data, error } = await query.limit(20);
 
-        if (!data?.length) {
+        if (error || !data?.length) {
             resultEl.innerHTML = `<p style="color:var(--text-muted); font-size:13px; padding:8px 0;">Nenhuma liga encontrada.</p>`;
             return;
         }
 
         const myIds = LeagueSystem.state.myMemberships.map(m => m.league_id || m.league?.id);
         resultEl.innerHTML = data.map(l => {
-            const joined = myIds.includes(l.id);
+            const membership = LeagueSystem.state.myMemberships.find(m => (m.league_id || m.league?.id) === l.id);
+            const status = membership?.status;
+            let action = '';
+            if (status === 'approved') {
+                action = `<span style="font-size:12px; color:var(--neon-green); padding:6px 10px;">✓ Membro</span>`;
+            } else if (status === 'pending') {
+                action = `<span style="font-size:12px; color:var(--neon-orange); padding:6px 10px;">⏳ Aguardando</span>`;
+            } else {
+                action = `<button class="action-btn primary" style="padding:6px 14px; font-size:12px;"
+                    onclick="LeagueSystem.requestJoin('${l.id}', '${l.name}')">
+                    <i class="fa-solid fa-paper-plane"></i> Solicitar Entrada
+                   </button>`;
+            }
             return `<div class="lobby-league-row">
                 <div>
                     <div style="font-weight:700; font-size:14px;">${l.name}</div>
                     <div style="font-size:11px; color:var(--text-muted);">Até ${l.max_teams} times</div>
                 </div>
-                ${joined
-                    ? `<span style="font-size:12px; color:var(--text-muted); padding:6px 10px;">Já solicitado</span>`
-                    : `<button class="action-btn primary" style="padding:6px 14px; font-size:12px;"
-                        onclick="LeagueSystem.requestJoin('${l.id}', '${l.name}')">
-                        <i class="fa-solid fa-paper-plane"></i> Solicitar
-                       </button>`
-                }
+                ${action}
             </div>`;
         }).join('');
     },
