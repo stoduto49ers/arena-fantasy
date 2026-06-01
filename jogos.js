@@ -128,9 +128,9 @@ const Jogos = {
                 if (finished && g.hs !== null) {
                     middle = `<div class="jogo-score">${g.hs} - ${g.as}</div>`;
                 } else {
-                    middle = `<div style="text-align:center; min-width:70px;">
-                        <div class="jogo-hora">${g.time || 'A def.'}</div>
-                        <div style="font-size:10px; color:var(--text-muted);">${g.date}</div>
+                    middle = `<div class="jogo-score" style="font-size:13px; color:var(--text-muted); font-weight:600;">
+                        <div>${g.time || 'A def.'}</div>
+                        <div style="font-size:10px; margin-top:2px;">${g.date}</div>
                     </div>`;
                 }
 
