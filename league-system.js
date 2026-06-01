@@ -1,178 +1,144 @@
 // =============================================
 // ARENA FANTASY - Sistema de Ligas
-// Tela inicial pública → seleciona liga → app da liga
 // =============================================
 
 const LeagueSystem = {
 
-    state: {
-        user: null,
-        myMemberships: [],
-        activeMembership: null,
-    },
+    state: { user: null, myLeagues: [], allLeagues: [] },
 
     async init(user) {
         LeagueSystem.state.user = user;
         window._currentUser = user;
-        await LeagueSystem.loadMemberships();
+        await LeagueSystem.loadAll();
         LeagueSystem.showHome();
     },
 
-    async loadMemberships() {
-        // Busca memberships sem join (FK foi removida)
+    // Carrega tudo de uma vez — ligas primeiro, depois memberships
+    async loadAll() {
+        const uid = LeagueSystem.state.user.id;
+
+        // 1. Busca TODAS as ligas existentes
+        const { data: allLeagues } = await window.supabaseClient
+            .from('leagues').select('id, name, commissioner_id, max_teams');
+        LeagueSystem.state.allLeagues = allLeagues || [];
+
+        // 2. Busca memberships do usuário
         const { data: members } = await window.supabaseClient
-            .from('league_members')
-            .select('*')
-            .eq('manager_id', LeagueSystem.state.user.id);
+            .from('league_members').select('id, league_id, status, approved_at')
+            .eq('manager_id', uid);
 
-        if (!members?.length) {
-            LeagueSystem.state.myMemberships = [];
-            return;
-        }
-
-        // Busca dados das ligas separadamente
-        const leagueIds = [...new Set(members.map(m => m.league_id))];
-        const { data: leagues } = await window.supabaseClient
-            .from('leagues')
-            .select('id, name, commissioner_id, max_teams')
-            .in('id', leagueIds);
-
-        // Combina manualmente
-        LeagueSystem.state.myMemberships = members.map(m => ({
-            ...m,
-            league: leagues?.find(l => l.id === m.league_id) || null
-        }));
+        // 3. Combina: para cada membership, encontra a liga pelo ID
+        LeagueSystem.state.myLeagues = (members || []).map(m => {
+            const league = (allLeagues || []).find(l => l.id === m.league_id);
+            return { ...m, league };
+        }).filter(m => m.league); // só inclui memberships com liga válida
     },
 
-    // Mostra a tela home pública (fora de qualquer liga)
     showHome() {
         document.getElementById('league-home').style.display = 'flex';
         document.getElementById('app-container-wrapper').style.display = 'none';
         LeagueSystem.renderHome();
-        // Jogos e notícias ficam disponíveis na home
-        if (typeof Jogos !== 'undefined') Jogos.load();
     },
 
-    // Entra em uma liga — mostra o app completo
-    enterLeague(leagueOrMembership) {
-        // Aceita tanto um objeto de liga direto quanto um membership
-        const league = leagueOrMembership.league || leagueOrMembership;
-        LeagueSystem.state.activeMembership = leagueOrMembership;
+    enterLeague(league) {
         window._currentLeague = league;
-
         document.getElementById('league-home').style.display = 'none';
         document.getElementById('app-container-wrapper').style.display = 'grid';
-
         const user = LeagueSystem.state.user;
         if (typeof initApp === 'function') initApp(user);
         if (typeof Dashboard !== 'undefined') Dashboard.init(user);
         if (typeof Draft !== 'undefined') Draft.init(user);
-        if (typeof Waiver !== 'undefined') Waiver.init(user);
     },
 
-    // Volta para a tela home
     leaveLeague() {
-        LeagueSystem.state.activeMembership = null;
         window._currentLeague = null;
         document.getElementById('app-container-wrapper').style.display = 'none';
         LeagueSystem.showHome();
     },
 
     renderHome() {
-        const approved = LeagueSystem.state.myMemberships.filter(m => m.status === 'approved');
-        const pending  = LeagueSystem.state.myMemberships.filter(m => m.status === 'pending');
-        // Carrega ligas disponíveis automaticamente
-        setTimeout(() => LeagueSystem.searchLeagues(), 100);
+        const emailEl = document.getElementById('home-user-email');
+        if (emailEl) emailEl.textContent = LeagueSystem.state.user?.email || '';
 
+        const approved = LeagueSystem.state.myLeagues.filter(m => m.status === 'approved');
+        const pending  = LeagueSystem.state.myLeagues.filter(m => m.status === 'pending');
+
+        // --- Minhas ligas ---
         const leaguesEl = document.getElementById('home-my-leagues');
         if (leaguesEl) {
-            if (approved.length === 0) {
-                leaguesEl.innerHTML = `<p style="color:var(--text-muted); font-size:13px;">
-                    Você ainda não participa de nenhuma liga. Busque uma abaixo.
-                </p>`;
-            } else {
-                leaguesEl.innerHTML = approved.map(m => {
-                    const leagueName = m.league?.name || m.league_name || '—';
-                    const maxTeams = m.league?.max_teams || 16;
-                    // Serializa apenas os campos necessários para evitar problemas de JSON
-                    const leagueData = JSON.stringify({ id: m.league_id, name: leagueName, max_teams: maxTeams, commissioner_id: m.league?.commissioner_id }).replace(/"/g, '&quot;');
-                    return `<div class="league-card" onclick="LeagueSystem.enterLeague(${leagueData})">
+            leaguesEl.innerHTML = approved.length === 0
+                ? `<p style="color:var(--text-muted); font-size:13px;">Você ainda não participa de nenhuma liga. Busque uma abaixo.</p>`
+                : approved.map(m => `
+                    <div class="league-card" onclick='LeagueSystem.enterLeague(${JSON.stringify(m.league)})'>
                         <div class="league-card-icon"><i class="fa-solid fa-trophy"></i></div>
                         <div class="league-card-info">
-                            <div class="league-card-name">${leagueName}</div>
-                            <div class="league-card-meta">Até ${maxTeams} times</div>
+                            <div class="league-card-name">${m.league.name}</div>
+                            <div class="league-card-meta">Até ${m.league.max_teams || 16} times</div>
                         </div>
                         <div class="league-card-enter">Entrar <i class="fa-solid fa-arrow-right"></i></div>
-                    </div>`;
-                }).join('');
-            }
+                    </div>`).join('');
         }
 
+        // --- Pendentes ---
         const pendingEl = document.getElementById('home-pending');
         if (pendingEl) {
             pendingEl.style.display = pending.length ? '' : 'none';
-            if (pending.length) {
-                pendingEl.innerHTML = `<div style="margin-bottom:8px; font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Aguardando aprovação</div>` +
-                    pending.map(m => `
-                    <div style="display:flex; align-items:center; gap:10px; padding:8px 12px;
-                        background:rgba(255,159,67,0.06); border:1px solid rgba(255,159,67,0.2);
-                        border-radius:8px; margin-bottom:6px; font-size:13px;">
-                        <i class="fa-solid fa-clock" style="color:var(--neon-orange);"></i>
-                        <span>Solicitação para <strong>${m.league?.name || m.league_id}</strong> em análise.</span>
-                    </div>`).join('');
-            }
+            pendingEl.innerHTML = pending.length ? `
+                <div style="margin-bottom:8px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">Aguardando aprovação</div>
+                ${pending.map(m => `
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;
+                    background:rgba(255,159,67,0.06);border:1px solid rgba(255,159,67,0.2);
+                    border-radius:8px;margin-bottom:6px;font-size:13px;">
+                    <i class="fa-solid fa-clock" style="color:var(--neon-orange);"></i>
+                    <span>Solicitação para <strong>${m.league.name}</strong> em análise.</span>
+                </div>`).join('')}` : '';
         }
+
+        // --- Busca (mostra ligas que não é membro aprovado) ---
+        LeagueSystem.renderAvailableLeagues();
     },
 
-    async searchLeagues(forceShowAll = false) {
-        const q = document.getElementById('home-search-input')?.value?.trim();
+    renderAvailableLeagues(filter = '') {
         const resultEl = document.getElementById('home-search-results');
         if (!resultEl) return;
 
-        // Busca todas as ligas se campo vazio OU busca pelo termo
-        let query = window.supabaseClient.from('leagues').select('id, name, max_teams');
-        if (q) {
-            query = query.ilike('name', `%${q}%`);
-        }
-        const { data, error } = await query.limit(20);
+        const approvedIds = LeagueSystem.state.myLeagues
+            .filter(m => m.status === 'approved').map(m => m.league_id);
+        const pendingIds = LeagueSystem.state.myLeagues
+            .filter(m => m.status === 'pending').map(m => m.league_id);
 
-        if (error || !data?.length) {
-            resultEl.innerHTML = `<p style="color:var(--text-muted); font-size:13px; padding:8px 0;">Nenhuma liga encontrada.</p>`;
+        let available = LeagueSystem.state.allLeagues
+            .filter(l => !approvedIds.includes(l.id));
+
+        if (filter) available = available.filter(l =>
+            l.name.toLowerCase().includes(filter.toLowerCase()));
+
+        if (!available.length) {
+            resultEl.innerHTML = `<p style="color:var(--text-muted);font-size:13px;padding:8px 0;">
+                ${approvedIds.length ? 'Você já é membro de todas as ligas disponíveis.' : 'Nenhuma liga encontrada.'}</p>`;
             return;
         }
 
-        const myIds = LeagueSystem.state.myMemberships
-            .filter(m => m.status === 'approved')
-            .map(m => m.league_id);
-
-        // Remove da lista ligas que já é membro aprovado
-        const filtered = data.filter(l => !myIds.includes(l.id));
-
-        if (!filtered.length) {
-            resultEl.innerHTML = `<p style="color:var(--text-muted); font-size:13px; padding:8px 0;">Você já é membro de todas as ligas disponíveis.</p>`;
-            return;
-        }
-
-        const pendingIds = LeagueSystem.state.myMemberships
-            .filter(m => m.status === 'pending')
-            .map(m => m.league_id);
-
-        resultEl.innerHTML = filtered.map(l => {
+        resultEl.innerHTML = available.map(l => {
             const isPending = pendingIds.includes(l.id);
             return `<div class="lobby-league-row">
                 <div>
-                    <div style="font-weight:700; font-size:14px;">${l.name}</div>
-                    <div style="font-size:11px; color:var(--text-muted);">Até ${l.max_teams} times</div>
+                    <div style="font-weight:700;font-size:14px;">${l.name}</div>
+                    <div style="font-size:11px;color:var(--text-muted);">Até ${l.max_teams || 16} times</div>
                 </div>
                 ${isPending
-                    ? `<span style="font-size:12px; color:var(--neon-orange); padding:6px 10px;">⏳ Aguardando</span>`
-                    : `<button class="action-btn primary" style="padding:6px 14px; font-size:12px;"
-                        onclick="LeagueSystem.requestJoin('${l.id}', '${l.name}')">
-                        <i class="fa-solid fa-paper-plane"></i> Solicitar Entrada
-                       </button>`
-                }
+                    ? `<span style="font-size:12px;color:var(--neon-orange);padding:6px 10px;">⏳ Aguardando</span>`
+                    : `<button class="action-btn primary" style="padding:6px 14px;font-size:12px;"
+                        onclick="LeagueSystem.requestJoin('${l.id}','${l.name}')">
+                        <i class="fa-solid fa-paper-plane"></i> Solicitar
+                       </button>`}
             </div>`;
         }).join('');
+    },
+
+    searchLeagues() {
+        const q = document.getElementById('home-search-input')?.value || '';
+        LeagueSystem.renderAvailableLeagues(q);
     },
 
     async requestJoin(leagueId, leagueName) {
@@ -180,24 +146,18 @@ const LeagueSystem = {
             .from('league_members')
             .insert({ league_id: leagueId, manager_id: LeagueSystem.state.user.id, status: 'pending' });
 
-        if (error) { LeagueSystem.toast('Erro ao solicitar. Tente novamente.', 'error'); return; }
-
+        if (error) { LeagueSystem.toast('Erro ao solicitar.', 'error'); return; }
         LeagueSystem.toast(`Solicitação enviada para "${leagueName}"!`, 'success');
-        await LeagueSystem.loadMemberships();
+        await LeagueSystem.loadAll();
         LeagueSystem.renderHome();
-        document.getElementById('home-search-results').innerHTML = '';
-        document.getElementById('home-search-input').value = '';
     },
 
     async approveRequest(memberId, approved) {
-        const { error } = await window.supabaseClient
-            .from('league_members')
+        await window.supabaseClient.from('league_members')
             .update({ status: approved ? 'approved' : 'rejected', approved_at: approved ? new Date().toISOString() : null })
             .eq('id', memberId);
-        if (!error) {
-            LeagueSystem.toast(approved ? 'Manager aprovado!' : 'Solicitação recusada.', approved ? 'success' : 'error');
-            if (typeof LeagueConfig !== 'undefined') LeagueConfig.loadPendingRequests?.();
-        }
+        LeagueSystem.toast(approved ? 'Manager aprovado!' : 'Recusado.', approved ? 'success' : 'error');
+        if (typeof LeagueConfig !== 'undefined') LeagueConfig.loadPendingRequests?.();
     },
 
     toast(msg, type = 'success') {
@@ -205,28 +165,21 @@ const LeagueSystem = {
         if (!t) { t = document.createElement('div'); t.id = 'ls-toast'; document.body.appendChild(t); }
         t.textContent = msg;
         t.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:99999;padding:12px 20px;
-            border-radius:10px;font-size:13px;font-weight:700;
+            border-radius:10px;font-size:13px;font-weight:700;display:block;
             background:${type==='success'?'rgba(0,255,135,0.15)':'rgba(255,71,87,0.15)'};
             color:${type==='success'?'var(--neon-green)':'var(--neon-red)'};
             border:1px solid ${type==='success'?'rgba(0,255,135,0.3)':'rgba(255,71,87,0.3)'};`;
-        t.style.display = 'block';
-        setTimeout(() => { if (t) t.style.display = 'none'; }, 3000);
+        setTimeout(() => { if(t) t.style.display='none'; }, 3000);
     }
 };
 
-// Funções de tabs da home
 LeagueSystem.showHomeTab = function(tab) {
-    ['ligas', 'jogos', 'noticias'].forEach(t => {
-        document.getElementById(`home-content-${t}`).style.display = t === tab ? '' : 'none';
+    ['ligas','jogos','noticias'].forEach(t => {
+        const el = document.getElementById(`home-content-${t}`);
         const btn = document.getElementById(`home-tab-${t}`);
+        if (el) el.style.display = t === tab ? '' : 'none';
         if (btn) btn.classList.toggle('active', t === tab);
     });
     if (tab === 'jogos' && typeof Jogos !== 'undefined') Jogos.load();
     if (tab === 'noticias' && typeof News !== 'undefined') News.load();
-
-    // Exibe email do usuário
-    const emailEl = document.getElementById('home-user-email');
-    if (emailEl && LeagueSystem.state.user) {
-        emailEl.textContent = LeagueSystem.state.user.email;
-    }
 };
