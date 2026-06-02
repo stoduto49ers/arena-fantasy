@@ -285,15 +285,57 @@ const Draft = {
 
     // --- Render principal ---
     render() {
+        const isFinished = Draft.state.draftState?.is_finished;
+
+        // Mostra/esconde banner de draft encerrado
+        Draft.renderFinishedBanner(isFinished);
+
         Draft.renderCommissionerPanel();
         Draft.renderHeader();
         Draft.renderBoard();
         Draft.renderPool();
         Draft.renderMyTeam();
         Draft.renderMiniPitch();
-        Draft.startTimer();
-        // Verifica se é vez de um bot
-        Draft.checkBotTurn();
+
+        if (!isFinished) {
+            Draft.startTimer();
+            Draft.checkBotTurn();
+        }
+    },
+
+    // Banner de "Draft Encerrado" que cobre a aba
+    renderFinishedBanner(isFinished) {
+        let banner = document.getElementById('draft-finished-banner');
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'draft-finished-banner';
+            banner.style.cssText = `
+                position: sticky; top: 0; z-index: 100;
+                background: linear-gradient(135deg, rgba(0,255,135,0.12), rgba(0,242,254,0.08));
+                border: 1px solid rgba(0,255,135,0.3);
+                border-radius: var(--border-radius-md);
+                padding: 16px 20px;
+                display: flex; align-items: center; gap: 16px;
+                margin-bottom: 16px;
+            `;
+            const draftTab = document.getElementById('draft-tab');
+            if (draftTab) draftTab.prepend(banner);
+        }
+
+        if (isFinished) {
+            banner.style.display = 'flex';
+            banner.innerHTML = `
+                <i class="fa-solid fa-trophy" style="font-size:28px; color:var(--neon-green);"></i>
+                <div>
+                    <div style="font-size:16px; font-weight:800; color:var(--neon-green);">Draft Brasileirão 2026 — Encerrado!</div>
+                    <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">
+                        Todos os times foram montados. Você pode visualizar todas as picks abaixo.
+                    </div>
+                </div>
+            `;
+        } else {
+            banner.style.display = 'none';
+        }
     },
 
     // --- Header do draft ---

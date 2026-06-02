@@ -1059,8 +1059,10 @@ function renderMarketList(playerList) {
         });
 
         let buttonHtml = "";
-        const draftIsFinished = typeof Draft !== 'undefined' && Draft.state.draftState?.is_finished;
-        const draftIsActive = typeof Draft !== 'undefined' && Draft.state.draftState?.draft_status === 'active';
+        const draftIsFinished = (typeof Draft !== 'undefined' && Draft.state.draftState?.is_finished)
+            || window._draftState?.is_finished;
+        const draftIsActive = (typeof Draft !== 'undefined' && Draft.state.draftState?.draft_status === 'active')
+            || window._draftState?.draft_status === 'active';
 
         if (isHired) {
             buttonHtml = `<button class="market-action-btn added" onclick="sellPlayerFromMarket(${player.id})">Remover</button>`;

@@ -44,21 +44,21 @@ const LeagueSystem = {
 
     enterLeague(league) {
         window._currentLeague = league;
-        window._currentUser = LeagueSystem.state.user; // garante antes de qualquer init
+        window._currentUser = LeagueSystem.state.user;
 
         document.getElementById('league-home').style.display = 'none';
         document.getElementById('app-container-wrapper').style.display = 'grid';
 
         const user = LeagueSystem.state.user;
-        window._currentUser = user; // garante antes do setTimeout
 
-        // Delay para o browser renderizar o grid antes de inicializar
-        setTimeout(() => {
+        setTimeout(async () => {
+            // Carrega estado do draft PRIMEIRO — outros módulos dependem dele
+            if (typeof Draft !== 'undefined') {
+                await Draft.init(user);
+                window._draftState = Draft.state.draftState; // expõe globalmente
+            }
             if (typeof initApp === 'function') initApp(user);
-            setTimeout(() => {
-                if (typeof Dashboard !== 'undefined') Dashboard.init(user);
-                if (typeof Draft !== 'undefined') Draft.init(user);
-            }, 100);
+            if (typeof Dashboard !== 'undefined') Dashboard.init(user);
         }, 50);
     },
 
