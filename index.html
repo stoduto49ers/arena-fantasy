@@ -1040,7 +1040,7 @@
         </main>
         
         <!-- --- CHAT SIDEBAR (RIGHT) --- -->
-        <aside class="chat-sidebar">
+        <aside class="chat-sidebar" style="display:flex; flex-direction:column; height:100vh; overflow:hidden;">
             <div class="chat-header">
                 <div class="chat-channel-badge"></div>
                 <div class="chat-header-info">
@@ -1049,7 +1049,7 @@
                 </div>
             </div>
             
-            <div class="chat-messages" id="chat-messages-container">
+            <div class="chat-messages" id="chat-messages-container" style="flex:1; min-height:0; overflow-y:scroll; overflow-x:hidden;">
                 <!-- Simulated messages from users -->
             </div>
             
