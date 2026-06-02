@@ -446,12 +446,15 @@ function setupChat() {
     const chatForm = document.getElementById("chat-form");
     if (!chatForm) return;
 
+    // Carrega mensagens anteriores
+    Chat.loadMessages();
+
     chatForm.addEventListener("submit", (e) => {
         e.preventDefault();
         const input = document.getElementById("chat-input-msg");
         const msgText = input?.value.trim();
         if (msgText) {
-            addChatMessage(currentManagerName, msgText, currentManagerAvatar, "var(--neon-blue)", true);
+            Chat.sendMessage(msgText);
             input.value = "";
         }
     });
@@ -465,71 +468,106 @@ function setupChat() {
                 "Quem escalou o Yuri Alberto tá rezando pra ele não errar o gol sem goleiro kkkkk",
                 "Cadê as estatísticas? Meu time tá com projeção de pontuação recorde!"
             ];
-            const randomTaunt = taunts[Math.floor(Math.random() * taunts.length)];
-            addChatMessage(currentManagerName, randomTaunt, currentManagerAvatar, "var(--neon-blue)", true);
-        });
-    }
-
-    const gifBtn = document.getElementById("chat-gif-btn");
-    if (gifBtn) {
-        gifBtn.addEventListener("click", () => {
-            const gifUrls = [
-                "https://media.giphy.com/media/l0HlIDtV6zvnC7f4k/giphy.gif",
-                "https://media.giphy.com/media/t3s3XSxOJZEas/giphy.gif",
-                "https://media.giphy.com/media/26AHONQ79FdWZhAI0/giphy.gif"
-            ];
-            const randomGif = gifUrls[Math.floor(Math.random() * gifUrls.length)];
-            addChatMessageWithGif(currentManagerName, "Esse é o sentimento da rodada!", randomGif, currentManagerAvatar, "var(--neon-blue)", true);
+            Chat.sendMessage(taunts[Math.floor(Math.random() * taunts.length)]);
         });
     }
 }
 
+// --- SISTEMA DE CHAT REAL (SUPABASE) ---
+const Chat = {
+    subscription: null,
+
+    async loadMessages() {
+        const { data } = await window.supabaseClient
+            .from('chat_messages')
+            .select('*')
+            .order('created_at', { ascending: true })
+            .limit(50);
+
+        chatMessages = (data || []).map(m => ({
+            author: m.team_name || '?',
+            text: m.message,
+            avatar: (m.team_name || '?').charAt(0).toUpperCase(),
+            color: m.avatar_color || 'var(--neon-blue)',
+            isUser: m.manager_id === window._currentUser?.id,
+            time: new Date(m.created_at).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })
+        }));
+        renderChat();
+        Chat.subscribe();
+    },
+
+    async sendMessage(text) {
+        const user = window._currentUser;
+        if (!user) return;
+        await window.supabaseClient.from('chat_messages').insert({
+            league_id: window._currentLeague?.id || null,
+            manager_id: user.id,
+            team_name: currentManagerName,
+            avatar_color: '#00f2fe',
+            message: text
+        });
+        // A mensagem aparece via realtime subscription
+    },
+
+    subscribe() {
+        if (Chat.subscription) return; // já inscrito
+        Chat.subscription = window.supabaseClient
+            .channel('chat-realtime')
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'chat_messages'
+            }, (payload) => {
+                const m = payload.new;
+                chatMessages.push({
+                    author: m.team_name || '?',
+                    text: m.message,
+                    avatar: (m.team_name || '?').charAt(0).toUpperCase(),
+                    color: m.avatar_color || 'var(--neon-blue)',
+                    isUser: m.manager_id === window._currentUser?.id,
+                    time: new Date(m.created_at).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })
+                });
+                renderChat();
+            })
+            .subscribe();
+    }
+};
+
 function addChatMessage(author, text, avatar, color, isUser) {
-    const now = new Date();
-    const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    chatMessages.push({ author, text, avatar, color, isUser, time });
-    renderChat();
+    Chat.sendMessage(text);
 }
 
 function addChatMessageWithGif(author, text, gifUrl, avatar, color, isUser) {
-    const now = new Date();
-    const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    chatMessages.push({ author, text, gifUrl, avatar, color, isUser, time });
-    renderChat();
+    Chat.sendMessage(text);
 }
 
 function renderChat() {
     const container = document.getElementById("chat-messages-container");
+    if (!container) return;
     container.innerHTML = "";
 
     chatMessages.forEach(msg => {
         const bubble = document.createElement("div");
         bubble.className = `message-bubble ${msg.isUser ? 'user-message' : ''}`;
-        
-        let gifHtml = msg.gifUrl ? `<img class="chat-gif" src="${msg.gifUrl}" alt="GIF do Chat">` : '';
 
         bubble.innerHTML = `
-            <div class="message-avatar" style="background-color: ${msg.color}; color: #fff;">${msg.avatar}</div>
+            <div class="message-avatar" style="background:${msg.color}; color:#000;">${msg.avatar}</div>
             <div class="message-content-wrapper">
                 <div class="message-meta">
                     <span class="message-author">${msg.author}</span>
                     <span class="message-time">${msg.time}</span>
                 </div>
-                <div class="message-text">
-                    ${msg.text}
-                    ${gifHtml}
-                </div>
+                <div class="message-text">${msg.text}</div>
             </div>
         `;
         container.appendChild(bubble);
     });
 
-    // Auto scroll para o final do chat
     container.scrollTop = container.scrollHeight;
 }
 
 function triggerBotChatReply(userMsg) {
-    // Bots removidos — chat agora é entre managers reais
+    // Bots removidos — chat real via Supabase
 }
 
 // --- DRAFT ROOM SIMULATOR ---
