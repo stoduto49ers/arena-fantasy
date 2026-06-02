@@ -1304,8 +1304,7 @@ function renderPitch() {
     const pitchGrid = document.getElementById("pitch-grid-slots");
     if (!pitchGrid) return;
     pitchGrid.innerHTML = "";
-    
-    // Remove containers antigos se existirem
+
     const oldReserves = document.getElementById("reserves-container");
     if (oldReserves) oldReserves.remove();
     const oldInjuries = document.getElementById("injuries-container");
@@ -1313,6 +1312,14 @@ function renderPitch() {
 
     const formationConfig = FORMATIONS[activeFormation];
     if (!formationConfig) return;
+
+    // Garante que lineup tem tamanho correto para a formação atual
+    const counts = formationConfig.counts;
+    Object.keys(counts).forEach(pos => {
+        if (!lineup[pos]) lineup[pos] = [];
+        while (lineup[pos].length < counts[pos]) lineup[pos].push(null);
+        if (lineup[pos].length > counts[pos]) lineup[pos].length = counts[pos];
+    });
     
     formationConfig.rows.forEach(rowConfig => {
         const rowDiv = document.createElement("div");

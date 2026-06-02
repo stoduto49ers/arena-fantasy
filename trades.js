@@ -189,48 +189,64 @@ const Trades = {
         const { data: trade } = await window.supabaseClient.from('trades').select('*').eq('id', tradeId).single();
         if (!trade) return;
 
-        for (const p of trade.offer_players) {
-            await window.supabaseClient.from('draft_picks').update({ manager_id: trade.receiver_id })
+        // Transfere jogadores
+        for (const p of (trade.offer_players || [])) {
+            await window.supabaseClient.from('draft_picks')
+                .update({ manager_id: trade.receiver_id })
                 .eq('player_id', p.id).eq('manager_id', trade.proposer_id);
         }
-        for (const p of trade.request_players) {
-            await window.supabaseClient.from('draft_picks').update({ manager_id: trade.proposer_id })
+        for (const p of (trade.request_players || [])) {
+            await window.supabaseClient.from('draft_picks')
+                .update({ manager_id: trade.proposer_id })
                 .eq('player_id', p.id).eq('manager_id', trade.receiver_id);
         }
 
-        // Transfere D$ se houver
-        if (trade.offer_money > 0) {
+        // Transfere D$ — busca saldos uma única vez e aplica tudo
+        const offerMoney = trade.offer_money || 0;   // proposer paga, receiver recebe
+        const requestMoney = trade.request_money || 0; // receiver paga, proposer recebe
+
+        if (offerMoney > 0 || requestMoney > 0) {
             const { data: proposer } = await window.supabaseClient.from('managers').select('budget').eq('id', trade.proposer_id).single();
             const { data: receiver } = await window.supabaseClient.from('managers').select('budget').eq('id', trade.receiver_id).single();
-            await window.supabaseClient.from('managers').update({ budget: (proposer?.budget || 0) - trade.offer_money }).eq('id', trade.proposer_id);
-            await window.supabaseClient.from('managers').update({ budget: (receiver?.budget || 0) + trade.offer_money }).eq('id', trade.receiver_id);
-        }
-        if (trade.request_money > 0) {
-            const { data: proposer } = await window.supabaseClient.from('managers').select('budget').eq('id', trade.proposer_id).single();
-            const { data: receiver } = await window.supabaseClient.from('managers').select('budget').eq('id', trade.receiver_id).single();
-            await window.supabaseClient.from('managers').update({ budget: (receiver?.budget || 0) - trade.request_money }).eq('id', trade.receiver_id);
-            await window.supabaseClient.from('managers').update({ budget: (proposer?.budget || 0) + trade.request_money }).eq('id', trade.proposer_id);
+
+            const proposerBudget = proposer?.budget || 0;
+            const receiverBudget = receiver?.budget || 0;
+
+            // proposer: paga offerMoney, recebe requestMoney
+            const newProposerBudget = proposerBudget - offerMoney + requestMoney;
+            // receiver: recebe offerMoney, paga requestMoney
+            const newReceiverBudget = receiverBudget + offerMoney - requestMoney;
+
+            await window.supabaseClient.from('managers').update({ budget: newProposerBudget }).eq('id', trade.proposer_id);
+            await window.supabaseClient.from('managers').update({ budget: newReceiverBudget }).eq('id', trade.receiver_id);
+
+            // Atualiza saldo local se sou o proposer ou receiver
+            const myId = window._currentUser?.id;
+            if (myId === trade.proposer_id) { userBudget = newProposerBudget; }
+            if (myId === trade.receiver_id) { userBudget = newReceiverBudget; }
+            const el = document.getElementById('header-budget-badge');
+            if (el) el.textContent = `D$${userBudget}`;
         }
 
         await window.supabaseClient.from('trades').update({ status: 'accepted' }).eq('id', tradeId);
 
-        // Posta no chat
-        const offerNames = trade.offer_players?.map(p => p.name).join(', ') || '';
-        const requestNames = trade.request_players?.map(p => p.name).join(', ') || '';
-        const moneyStr = trade.offer_money > 0 ? ` + D$${trade.offer_money}` : trade.request_money > 0 ? ` (recebeu D$${trade.request_money})` : '';
-        if (window._currentUser && window.supabaseClient) {
+        // Mensagem no chat
+        const offerNames = (trade.offer_players || []).map(p => p.name).join(', ');
+        const requestNames = (trade.request_players || []).map(p => p.name).join(', ');
+        const moneyPart = offerMoney > 0 ? ` + D$${offerMoney}` : requestMoney > 0 ? ` (+ D$${requestMoney})` : '';
+        if (window._currentUser) {
             await window.supabaseClient.from('chat_messages').insert({
                 league_id: window._currentLeague?.id || null,
                 manager_id: window._currentUser.id,
                 team_name: '🔄 Troca',
                 avatar_color: '#00ff87',
-                message: `Troca concluída! ${offerNames}${moneyStr} ↔ ${requestNames}`
+                message: `Troca concluída! ${offerNames || 'D$'}${moneyPart} ↔ ${requestNames || 'D$'}`
             });
         }
 
-        Trades.loadTradesReceived(); Trades.loadMyPicks();
-        // Recarrega lineup com novos jogadores
-        if (typeof loadMyDraftedPlayers !== 'undefined') loadMyDraftedPlayers();
+        Trades.loadTradesReceived();
+        Trades.loadMyPicks();
+        if (typeof loadMyDraftedPlayers === 'function') loadMyDraftedPlayers();
         Trades.showToast('Troca aceita!', 'success');
     },
 
