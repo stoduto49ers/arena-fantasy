@@ -44,12 +44,19 @@ const LeagueSystem = {
 
     enterLeague(league) {
         window._currentLeague = league;
+        window._currentUser = LeagueSystem.state.user; // garante antes de qualquer init
+
         document.getElementById('league-home').style.display = 'none';
         document.getElementById('app-container-wrapper').style.display = 'grid';
+
         const user = LeagueSystem.state.user;
-        if (typeof initApp === 'function') initApp(user);
-        if (typeof Dashboard !== 'undefined') Dashboard.init(user);
-        if (typeof Draft !== 'undefined') Draft.init(user);
+
+        // Pequeno delay para garantir que o DOM está visível antes de inicializar
+        setTimeout(() => {
+            if (typeof initApp === 'function') initApp(user);
+            if (typeof Dashboard !== 'undefined') Dashboard.init(user);
+            if (typeof Draft !== 'undefined') Draft.init(user);
+        }, 50);
     },
 
     leaveLeague() {
