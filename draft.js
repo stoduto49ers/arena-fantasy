@@ -281,6 +281,8 @@ const Draft = {
         Draft.renderMyTeam();
         Draft.renderMiniPitch();
         Draft.startTimer();
+        // Verifica se é vez de um bot
+        Draft.checkBotTurn();
     },
 
     // --- Header do draft ---
@@ -532,6 +534,98 @@ const Draft = {
         if (el) el.style.display = show ? 'flex' : 'none';
     },
 
+    // --- Sorteia ordem dos managers e posta no chat ---
+    async shuffleOrder() {
+        if (!Draft.isCommissioner()) return;
+        if (!Draft.state.managers.length) {
+            alert('Nenhum manager na liga ainda.'); return;
+        }
+
+        const shuffled = [...Draft.state.managers].sort(() => Math.random() - 0.5);
+
+        // Salva a ordem no banco
+        await window.supabaseClient.from('draft_state')
+            .update({ pick_order: JSON.stringify(shuffled.map(m => m.id)) })
+            .eq('id', 1);
+
+        // Posta no chat
+        const orderText = shuffled.map((m, i) => `${i+1}º ${m.team_name}`).join(' → ');
+        const msg = `🎲 Ordem do Draft sorteada!\n${shuffled.map((m,i) => `${i+1}. ${m.team_name}`).join('\n')}`;
+        if (typeof Chat !== 'undefined') {
+            await window.supabaseClient.from('chat_messages').insert({
+                league_id: window._currentLeague?.id || null,
+                manager_id: Draft.state.currentUser.id,
+                team_name: '🏆 Sistema',
+                avatar_color: '#ffd700',
+                message: msg
+            });
+        }
+
+        alert(`Ordem sorteada!\n${shuffled.map((m,i) => `${i+1}. ${m.team_name}`).join('\n')}`);
+        await Draft.loadDraftState();
+        Draft.render();
+    },
+
+    // --- Bots fazem picks automáticos ---
+    BOT_NAMES: ['Galácticos BR', 'Mitadores FC', 'Chapéu Cruzado', 'Os Cabulosos', 'Rei do Draft', 'Esquadrão Ninja'],
+    BOT_IDS: [],
+
+    getBots() {
+        // Bots = managers que NÃO são o usuário atual
+        return Draft.state.managers.filter(m => m.id !== Draft.state.currentUser?.id);
+    },
+
+    // Verifica se a pick atual é de um bot e faz a pick automaticamente
+    async checkBotTurn() {
+        if (!Draft.isDraftActive()) return;
+        if (!Draft.isCommissioner()) return; // só comissário aciona bots
+
+        const slot = Draft.getCurrentSlot();
+        if (!slot) return;
+
+        const isBot = slot.managerId !== Draft.state.currentUser?.id;
+        if (!isBot) return;
+
+        // Bot espera 3-8 segundos para simular pensamento
+        const delay = 3000 + Math.random() * 5000;
+        setTimeout(async () => {
+            // Verifica novamente se ainda é a vez do bot
+            await Draft.loadDraftState();
+            const currentSlot = Draft.getCurrentSlot();
+            if (!currentSlot || currentSlot.managerId === Draft.state.currentUser?.id) return;
+            if (Draft.state.draftState?.draft_status !== 'active') return;
+
+            // Escolhe o melhor jogador disponível para o bot
+            const available = PLAYERS_DATABASE
+                .filter(p => !Draft.state.picks.find(pk => pk.player_id === p.id))
+                .sort((a, b) => b.projPoints - a.projPoints);
+
+            if (available.length === 0) return;
+
+            // Bot pega o top jogador disponível na posição que mais precisa
+            const botPicks = Draft.state.picks.filter(p => p.manager_id === currentSlot.managerId);
+            const byPos = { GOL:0, ZAG:0, LAT:0, MEI:0, ATA:0 };
+            botPicks.forEach(p => { if (byPos[p.player_position] !== undefined) byPos[p.player_position]++; });
+
+            // Prioridades básicas do bot
+            let pick = null;
+            if (byPos.GOL === 0) pick = available.find(p => p.position === 'GOL');
+            else if (byPos.ATA < 3) pick = available.find(p => p.position === 'ATA');
+            else if (byPos.MEI < 4) pick = available.find(p => p.position === 'MEI');
+            else if (byPos.ZAG < 2) pick = available.find(p => p.position === 'ZAG');
+            else if (byPos.LAT < 2) pick = available.find(p => p.position === 'LAT');
+            if (!pick) pick = available[0];
+
+            await Draft.makePick({
+                id: pick.id,
+                name: pick.name,
+                position: pick.position,
+                club: pick.club,
+                projPoints: pick.projPoints
+            });
+        }, delay);
+    },
+
     // Verifica se o usuário atual é o comissário (primeiro manager cadastrado)
     isCommissioner() {
         const uid = Draft.state.currentUser?.id;
@@ -605,6 +699,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (confirm(`Iniciar o draft com ${hours}h por pick?`)) {
             Draft.commissionerStart(hours);
         }
+    });
+
+    // Botão sortear ordem
+    document.getElementById('commissioner-shuffle-btn')?.addEventListener('click', () => {
+        Draft.shuffleOrder();
     });
 
     // Botão reset do draft

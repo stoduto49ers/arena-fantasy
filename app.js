@@ -477,6 +477,23 @@ function setupChat() {
 const Chat = {
     subscription: null,
 
+    async clearHistory() {
+        if (!confirm('Limpar todo o histórico do chat? Esta ação não pode ser desfeita.')) return;
+        await window.supabaseClient.from('chat_messages').delete().neq('id', 0);
+        chatMessages = [];
+        renderChat();
+        Chat.toast?.('Histórico limpo!');
+    },
+
+    toast(msg) {
+        let t = document.getElementById('chat-toast');
+        if (!t) { t = document.createElement('div'); t.id = 'chat-toast'; document.body.appendChild(t); }
+        t.textContent = msg;
+        t.style.cssText = 'position:fixed;bottom:80px;right:24px;z-index:99999;padding:10px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(0,255,135,0.15);color:var(--neon-green);border:1px solid rgba(0,255,135,0.3);';
+        t.style.display = 'block';
+        setTimeout(() => { t.style.display = 'none'; }, 2000);
+    },
+
     // Busca nome real do manager diretamente do banco
     async getMyTeamName() {
         const user = window._currentUser;

@@ -424,6 +424,9 @@
                             <button class="action-btn primary" id="commissioner-start-btn">
                                 <i class="fa-solid fa-play"></i> Iniciar Draft
                             </button>
+                            <button class="action-btn" id="commissioner-shuffle-btn" style="border-color:rgba(168,85,247,0.4); color:#a855f7;">
+                                <i class="fa-solid fa-shuffle"></i> Sortear Ordem
+                            </button>
                             <button class="action-btn" id="commissioner-reset-btn" style="border-color:rgba(255,71,87,0.4); color:var(--neon-red);">
                                 <i class="fa-solid fa-rotate-left"></i> Resetar Draft
                             </button>
@@ -1045,8 +1048,11 @@
                 <div class="chat-channel-badge"></div>
                 <div class="chat-header-info">
                     <h4>Bate-papo da Liga</h4>
-                    <span id="chat-online-users">4 membros ativos</span>
+                    <span id="chat-online-users">membros ativos</span>
                 </div>
+                <button onclick="Chat.clearHistory()" title="Limpar histórico" style="margin-left:auto; background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:13px; padding:4px 8px; border-radius:6px;" onmouseover="this.style.color='var(--neon-red)'" onmouseout="this.style.color='var(--text-muted)'">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
             </div>
             
             <div class="chat-messages" id="chat-messages-container" style="flex:1; min-height:0; overflow-y:scroll; overflow-x:hidden;">
