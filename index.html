@@ -278,7 +278,7 @@
             </nav>
             
             <!-- User Profile Avatar (bottom) -->
-            <div class="user-profile" id="open-profile-btn" title="Meu Perfil" style="cursor:pointer;">
+            <div class="user-profile" id="open-profile-btn" title="Meu Perfil" style="cursor:pointer;" onclick="if(window._currentUser && typeof Profile !== 'undefined') Profile.open(window._currentUser);">
                 <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
                     <rect width="48" height="48" fill="#1e2235"/>
                     <circle cx="24" cy="20" r="8" fill="#00f2fe"/>

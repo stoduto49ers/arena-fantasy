@@ -593,6 +593,44 @@ const Draft = {
         return Draft.BOT_IDS.includes(managerId);
     },
 
+    // Pick feita por um bot (bypassa validações de usuário)
+    async makeBotPick(botId, player) {
+        const slot = Draft.getCurrentSlot();
+        if (!slot || slot.managerId !== botId) return;
+
+        const idx = Draft.state.draftState.current_pick_index;
+        const timerHours = Draft.state.timerHours || 8;
+
+        const { error } = await window.supabaseClient
+            .from('draft_picks')
+            .insert({
+                round: slot.round,
+                pick_number: slot.pickNumber,
+                manager_id: botId,
+                player_id: player.id,
+                player_name: player.name,
+                player_position: player.position,
+                player_club: player.club,
+            });
+
+        if (error) { console.error('Bot pick error:', error); return; }
+
+        const nextIdx = idx + 1;
+        const isFinished = nextIdx >= Draft.TOTAL_ROUNDS * Draft.state.managers.length;
+        const expiresAt = new Date(Date.now() + timerHours * 3600 * 1000).toISOString();
+
+        await window.supabaseClient.from('draft_state').update({
+            current_pick_index: nextIdx,
+            is_finished: isFinished,
+            timer_expires_at: isFinished ? null : expiresAt,
+            updated_at: new Date().toISOString()
+        }).eq('id', 1);
+
+        await Draft.loadDraftState();
+        await Draft.loadPicks();
+        Draft.render();
+    },
+
     // Verifica se a pick atual é de um bot e faz a pick automaticamente
     async checkBotTurn() {
         if (!Draft.isDraftActive()) return;
@@ -601,14 +639,18 @@ const Draft = {
         if (!slot) return;
         if (!Draft.isBot(slot.managerId)) return;
 
-        // Bot espera 3-8 segundos
-        const delay = 3000 + Math.random() * 5000;
+        const botId = slot.managerId;
+
+        // Bot "pensa" por 2-5 segundos
+        const delay = 2000 + Math.random() * 3000;
         setTimeout(async () => {
+            // Recarrega estado para ter certeza que ainda é vez do bot
             await Draft.loadDraftState();
             await Draft.loadPicks();
+
+            if (!Draft.isDraftActive()) return;
             const currentSlot = Draft.getCurrentSlot();
-            if (!currentSlot || !Draft.isBot(currentSlot.managerId)) return;
-            if (Draft.state.draftState?.draft_status !== 'active') return;
+            if (!currentSlot || currentSlot.managerId !== botId) return;
 
             // Escolhe o melhor jogador disponível
             const available = PLAYERS_DATABASE
@@ -617,7 +659,7 @@ const Draft = {
             if (!available.length) return;
 
             // Prioriza posições que faltam
-            const botPicks = Draft.state.picks.filter(p => p.manager_id === currentSlot.managerId);
+            const botPicks = Draft.state.picks.filter(p => p.manager_id === botId);
             const byPos = { GOL:0, ZAG:0, LAT:0, MEI:0, ATA:0 };
             botPicks.forEach(p => { if (byPos[p.player_position] !== undefined) byPos[p.player_position]++; });
 
@@ -629,11 +671,7 @@ const Draft = {
             else if (byPos.LAT < 2) pick = available.find(p => p.position === 'LAT');
             if (!pick) pick = available[0];
 
-            await Draft.makePick({
-                id: pick.id, name: pick.name,
-                position: pick.position, club: pick.club,
-                projPoints: pick.projPoints
-            });
+            await Draft.makeBotPick(botId, pick);
         }, delay);
     },
 
