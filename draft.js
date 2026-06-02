@@ -566,48 +566,48 @@ const Draft = {
         Draft.render();
     },
 
-    // --- Bots fazem picks automáticos ---
-    BOT_NAMES: ['Galácticos BR', 'Mitadores FC', 'Chapéu Cruzado', 'Os Cabulosos', 'Rei do Draft', 'Esquadrão Ninja'],
-    BOT_IDS: [],
+    // IDs fixos dos bots
+    BOT_IDS: [
+        '00000000-0000-0000-0000-000000000001',
+        '00000000-0000-0000-0000-000000000002',
+        '00000000-0000-0000-0000-000000000003',
+        '00000000-0000-0000-0000-000000000004',
+        '00000000-0000-0000-0000-000000000005',
+        '00000000-0000-0000-0000-000000000006',
+    ],
 
-    getBots() {
-        // Bots = managers que NÃO são o usuário atual
-        return Draft.state.managers.filter(m => m.id !== Draft.state.currentUser?.id);
+    isBot(managerId) {
+        return Draft.BOT_IDS.includes(managerId);
     },
 
     // Verifica se a pick atual é de um bot e faz a pick automaticamente
     async checkBotTurn() {
         if (!Draft.isDraftActive()) return;
-        if (!Draft.isCommissioner()) return; // só comissário aciona bots
 
         const slot = Draft.getCurrentSlot();
         if (!slot) return;
+        if (!Draft.isBot(slot.managerId)) return;
 
-        const isBot = slot.managerId !== Draft.state.currentUser?.id;
-        if (!isBot) return;
-
-        // Bot espera 3-8 segundos para simular pensamento
+        // Bot espera 3-8 segundos
         const delay = 3000 + Math.random() * 5000;
         setTimeout(async () => {
-            // Verifica novamente se ainda é a vez do bot
             await Draft.loadDraftState();
+            await Draft.loadPicks();
             const currentSlot = Draft.getCurrentSlot();
-            if (!currentSlot || currentSlot.managerId === Draft.state.currentUser?.id) return;
+            if (!currentSlot || !Draft.isBot(currentSlot.managerId)) return;
             if (Draft.state.draftState?.draft_status !== 'active') return;
 
-            // Escolhe o melhor jogador disponível para o bot
+            // Escolhe o melhor jogador disponível
             const available = PLAYERS_DATABASE
                 .filter(p => !Draft.state.picks.find(pk => pk.player_id === p.id))
                 .sort((a, b) => b.projPoints - a.projPoints);
+            if (!available.length) return;
 
-            if (available.length === 0) return;
-
-            // Bot pega o top jogador disponível na posição que mais precisa
+            // Prioriza posições que faltam
             const botPicks = Draft.state.picks.filter(p => p.manager_id === currentSlot.managerId);
             const byPos = { GOL:0, ZAG:0, LAT:0, MEI:0, ATA:0 };
             botPicks.forEach(p => { if (byPos[p.player_position] !== undefined) byPos[p.player_position]++; });
 
-            // Prioridades básicas do bot
             let pick = null;
             if (byPos.GOL === 0) pick = available.find(p => p.position === 'GOL');
             else if (byPos.ATA < 3) pick = available.find(p => p.position === 'ATA');
@@ -617,10 +617,8 @@ const Draft = {
             if (!pick) pick = available[0];
 
             await Draft.makePick({
-                id: pick.id,
-                name: pick.name,
-                position: pick.position,
-                club: pick.club,
+                id: pick.id, name: pick.name,
+                position: pick.position, club: pick.club,
                 projPoints: pick.projPoints
             });
         }, delay);

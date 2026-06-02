@@ -73,25 +73,79 @@ const LeagueConfig = {
             return;
         }
 
-        container.innerHTML = data.map(req => `
-            <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px;
-                border:1px solid var(--border-color); border-radius:var(--border-radius-sm);
-                background:rgba(255,255,255,0.02); margin-bottom:6px; flex-wrap:wrap; gap:8px;">
-                <div>
-                    <div style="font-weight:700; font-size:13px;">${req.manager?.team_name || '—'}</div>
-                    <div style="font-size:11px; color:var(--text-muted);">${req.manager?.email || ''}</div>
+        // Busca bots disponíveis para substituição
+        const BOT_IDS = [
+            '00000000-0000-0000-0000-000000000001',
+            '00000000-0000-0000-0000-000000000002',
+            '00000000-0000-0000-0000-000000000003',
+            '00000000-0000-0000-0000-000000000004',
+            '00000000-0000-0000-0000-000000000005',
+            '00000000-0000-0000-0000-000000000006',
+        ];
+        const { data: bots } = await window.supabaseClient
+            .from('managers')
+            .select('id, team_name')
+            .in('id', BOT_IDS);
+        const availableBots = bots || [];
+
+        container.innerHTML = data.map(req => {
+            const botOptions = availableBots.map(b =>
+                `<option value="${b.id}">${b.team_name}</option>`
+            ).join('');
+
+            return `<div style="padding:12px; border:1px solid var(--border-color);
+                border-radius:var(--border-radius-sm); background:rgba(255,255,255,0.02); margin-bottom:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                    <div>
+                        <div style="font-weight:700; font-size:13px;">${req.manager?.team_name || '—'}</div>
+                        <div style="font-size:11px; color:var(--text-muted);">${req.manager?.email || ''}</div>
+                    </div>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                        ${availableBots.length > 0 ? `
+                        <select id="bot-replace-${req.id}" style="background:rgba(255,255,255,0.06); border:1px solid var(--border-color);
+                            color:var(--text-primary); border-radius:6px; padding:5px 8px; font-size:11px; font-family:var(--font-primary);">
+                            <option value="">Aprovar sem substituir bot</option>
+                            ${botOptions}
+                        </select>` : ''}
+                        <button class="action-btn primary" style="padding:6px 12px; font-size:12px;"
+                            onclick="LeagueConfig.approveWithBotReplace(${req.id}, '${req.manager_id}')">
+                            <i class="fa-solid fa-check"></i> Aprovar
+                        </button>
+                        <button class="action-btn" style="padding:6px 12px; font-size:12px; border-color:rgba(255,71,87,0.3); color:var(--neon-red);"
+                            onclick="LeagueSystem.approveRequest(${req.id}, false)">
+                            <i class="fa-solid fa-xmark"></i> Recusar
+                        </button>
+                    </div>
                 </div>
-                <div style="display:flex; gap:8px;">
-                    <button class="action-btn primary" style="padding:6px 12px; font-size:12px;"
-                        onclick="LeagueSystem.approveRequest(${req.id}, true)">
-                        <i class="fa-solid fa-check"></i> Aprovar
-                    </button>
-                    <button class="action-btn" style="padding:6px 12px; font-size:12px; border-color:rgba(255,71,87,0.3); color:var(--neon-red);"
-                        onclick="LeagueSystem.approveRequest(${req.id}, false)">
-                        <i class="fa-solid fa-xmark"></i> Recusar
-                    </button>
-                </div>
-            </div>`).join('');
+            </div>`;
+        }).join('');
+    },
+
+    async approveWithBotReplace(memberId, managerId) {
+        const selectEl = document.getElementById(`bot-replace-${memberId}`);
+        const botIdToReplace = selectEl?.value || '';
+
+        // Aprova o manager
+        await window.supabaseClient
+            .from('league_members')
+            .update({ status: 'approved', approved_at: new Date().toISOString() })
+            .eq('id', memberId);
+
+        // Remove o bot da liga se selecionado
+        if (botIdToReplace) {
+            await window.supabaseClient
+                .from('league_members')
+                .delete()
+                .eq('manager_id', botIdToReplace)
+                .eq('league_id', window._currentLeague?.id);
+
+            LeagueConfig.showToast('Manager aprovado e bot removido!', 'success');
+        } else {
+            LeagueConfig.showToast('Manager aprovado!', 'success');
+        }
+
+        LeagueConfig.loadPendingRequests();
+        if (typeof Dashboard !== 'undefined') Dashboard.init(window._currentUser);
     },
 
     // --- Salva uma seção da config ---
