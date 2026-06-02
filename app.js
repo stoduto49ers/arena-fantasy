@@ -143,7 +143,58 @@ function initApp(user) {
     renderPitch();
     renderMatchup();
     renderChat();
+
+    // Carrega jogadores draftados do banco
+    if (user) setTimeout(() => loadMyDraftedPlayers(), 200);
 }
+
+// Carrega jogadores draftados do banco e popula o lineup
+async function loadMyDraftedPlayers() {
+    const user = window._currentUser;
+    if (!user) return;
+
+    const { data: picks } = await window.supabaseClient
+        .from('draft_picks')
+        .select('*')
+        .eq('manager_id', user.id);
+
+    if (!picks?.length) return;
+
+    // Marca jogadores como draftados e auto-popula o lineup
+    picks.forEach(pick => {
+        const player = PLAYERS_DATABASE.find(p => p.id === pick.player_id);
+        if (!player) return;
+
+        player.status = 'contratado';
+        player.draftedBy = user.id;
+
+        // Verifica se já está no lineup local
+        let alreadyInLineup = false;
+        Object.values(lineup).forEach(arr => {
+            if (arr.some(p => p && p.id === player.id)) alreadyInLineup = true;
+        });
+        if (alreadyInLineup) return;
+
+        // Tenta colocar na posição correta
+        const pos = player.position;
+        if (lineup[pos]) {
+            const emptyIdx = lineup[pos].indexOf(null);
+            if (emptyIdx !== -1) {
+                lineup[pos][emptyIdx] = player;
+                return;
+            }
+        }
+        // Reserva se não couber
+        const reserveIdx = lineup.RESERVAS.indexOf(null);
+        if (reserveIdx !== -1) lineup.RESERVAS[reserveIdx] = player;
+    });
+
+    renderPitch();
+    updateLineupStats();
+}
+
+// Função global exposta para uso no initApp
+window.loadMyDraftedPlayers = loadMyDraftedPlayers;
 
 // --- CONTROLE DE ABAS ---
 function setupTabListeners() {
@@ -167,7 +218,6 @@ function setupTabListeners() {
     if (logoBtn) {
         logoBtn.addEventListener("click", () => switchTab("dashboard-tab"));
     }
-
 }
 
 
@@ -221,7 +271,10 @@ function switchTab(tabId) {
     }
     if (tabId === "jogos-tab" && typeof Jogos !== "undefined") Jogos.load();
     if (tabId === "news-tab" && typeof News !== "undefined") News.load();
-    if (tabId === "team-tab") renderPitch();
+    if (tabId === "team-tab") {
+        loadMyDraftedPlayers();
+        renderPitch();
+    }
 }
 
 // --- HEADER ACTIONS ---

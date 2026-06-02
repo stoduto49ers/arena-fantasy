@@ -143,6 +143,17 @@ const Draft = {
             })
             .eq('id', 1);
 
+        // Aviso no chat quando draft encerra
+        if (isFinished && window._currentUser) {
+            await window.supabaseClient.from('chat_messages').insert({
+                league_id: window._currentLeague?.id || null,
+                manager_id: window._currentUser.id,
+                team_name: '🏆 Sistema',
+                avatar_color: '#ffd700',
+                message: '🎉 DRAFT ENCERRADO! Todos os times foram montados. Boa sorte na temporada!'
+            });
+        }
+
         Draft.playPickSound();
     },
 

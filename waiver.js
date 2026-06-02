@@ -260,9 +260,8 @@ const Waiver = {
 
         container.innerHTML = players.map(p => {
             const myBid = myBidMap[p.id];
-            // Maior lance atual (de qualquer manager, anônimo)
-            const topBid = Waiver.state.bids.find(b => b.player_id === p.id);
-            const topBidDisplay = topBid ? `<span style="font-size:11px; color:var(--text-muted);">Maior lance: D$${topBid.bid_amount}</span>` : '';
+            // Mostra apenas o SEU próprio lance, nunca o dos outros
+            const topBidDisplay = myBid ? `<span style="font-size:11px; color:var(--neon-orange);">Seu lance: D$${myBid.bid_amount}</span>` : '';
 
             return `<div class="waiver-player-row">
                 <div class="draft-player-info">

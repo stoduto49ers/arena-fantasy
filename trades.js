@@ -213,7 +213,24 @@ const Trades = {
         }
 
         await window.supabaseClient.from('trades').update({ status: 'accepted' }).eq('id', tradeId);
+
+        // Posta no chat
+        const offerNames = trade.offer_players?.map(p => p.name).join(', ') || '';
+        const requestNames = trade.request_players?.map(p => p.name).join(', ') || '';
+        const moneyStr = trade.offer_money > 0 ? ` + D$${trade.offer_money}` : trade.request_money > 0 ? ` (recebeu D$${trade.request_money})` : '';
+        if (window._currentUser && window.supabaseClient) {
+            await window.supabaseClient.from('chat_messages').insert({
+                league_id: window._currentLeague?.id || null,
+                manager_id: window._currentUser.id,
+                team_name: '🔄 Troca',
+                avatar_color: '#00ff87',
+                message: `Troca concluída! ${offerNames}${moneyStr} ↔ ${requestNames}`
+            });
+        }
+
         Trades.loadTradesReceived(); Trades.loadMyPicks();
+        // Recarrega lineup com novos jogadores
+        if (typeof loadMyDraftedPlayers !== 'undefined') loadMyDraftedPlayers();
         Trades.showToast('Troca aceita!', 'success');
     },
 
