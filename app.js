@@ -1277,9 +1277,13 @@ function changeFormation(newFormation) {
     addActivityLog("system", `Esquema tático alterado para <strong>${newFormation}</strong>.`);
     
     // Atualiza exibições
-    renderPitch();
-    renderMarket();
-    renderMatchup();
+    // Limpa lineup e recarrega do banco com nova formação
+    Object.keys(lineup).forEach(pos => {
+        if (pos !== 'RESERVAS' && pos !== 'LESOES') {
+            lineup[pos] = Array(FORMATIONS[newFormation]?.counts[pos] || lineup[pos].length).fill(null);
+        }
+    });
+    loadMyDraftedPlayers();
 }
 
 function updateLineupStats() {
