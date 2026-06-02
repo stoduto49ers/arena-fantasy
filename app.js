@@ -168,22 +168,9 @@ function setupTabListeners() {
         logoBtn.addEventListener("click", () => switchTab("dashboard-tab"));
     }
 
-    // Botão de perfil — registrado no DOMContentLoaded para garantir que profile.js já carregou
-    document.getElementById('open-profile-btn')?.addEventListener('click', () => {
-        if (window._currentUser && typeof Profile !== 'undefined') {
-            Profile.open(window._currentUser);
-        }
-    });
 }
 
-// Listener do perfil também no DOMContentLoaded como backup
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('open-profile-btn')?.addEventListener('click', () => {
-        if (window._currentUser && typeof Profile !== 'undefined') {
-            Profile.open(window._currentUser);
-        }
-    });
-});
+
 
 function switchTab(tabId) {
     activeTab = tabId;

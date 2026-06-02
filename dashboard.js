@@ -222,6 +222,12 @@ const Dashboard = {
     },
 
     subscribeRealtime() {
+        // Remove canal anterior se existir
+        try {
+            const existing = window.supabaseClient.getChannels().find(c => c.topic === 'realtime:dashboard-live');
+            if (existing) window.supabaseClient.removeChannel(existing);
+        } catch(e) {}
+
         window.supabaseClient
             .channel('dashboard-live')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'managers' }, async () => {
