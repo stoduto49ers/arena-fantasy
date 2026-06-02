@@ -477,59 +477,77 @@ function setupChat() {
 const Chat = {
     subscription: null,
 
+    // Busca nome real do manager diretamente do banco
+    async getMyTeamName() {
+        const user = window._currentUser;
+        if (!user) return 'Meu Time';
+        const { data } = await window.supabaseClient
+            .from('managers').select('team_name').eq('id', user.id).single();
+        return data?.team_name || currentManagerName || 'Meu Time';
+    },
+
     async loadMessages() {
         const { data } = await window.supabaseClient
             .from('chat_messages')
             .select('*')
-            .order('created_at', { ascending: true })
-            .limit(50);
+            .order('created_at', { ascending: true });
+            // sem .limit() — carrega todas as mensagens
 
-        chatMessages = (data || []).map(m => ({
+        chatMessages = (data || []).map(m => Chat.formatMessage(m));
+        renderChat();
+        Chat.subscribe();
+    },
+
+    formatMessage(m) {
+        return {
             author: m.team_name || '?',
             text: m.message,
             avatar: (m.team_name || '?').charAt(0).toUpperCase(),
             color: m.avatar_color || 'var(--neon-blue)',
             isUser: m.manager_id === window._currentUser?.id,
             time: new Date(m.created_at).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })
-        }));
-        renderChat();
-        Chat.subscribe();
+        };
     },
 
     async sendMessage(text) {
         const user = window._currentUser;
-        if (!user) return;
+        if (!user || !text.trim()) return;
+
+        // Busca nome real sempre antes de enviar
+        const teamName = await Chat.getMyTeamName();
+
         await window.supabaseClient.from('chat_messages').insert({
             league_id: window._currentLeague?.id || null,
             manager_id: user.id,
-            team_name: currentManagerName,
+            team_name: teamName,
             avatar_color: '#00f2fe',
-            message: text
+            message: text.trim()
         });
-        // A mensagem aparece via realtime subscription
     },
 
     subscribe() {
-        if (Chat.subscription) return; // já inscrito
+        // Remove subscription anterior se existir
+        if (Chat.subscription) {
+            window.supabaseClient.removeChannel(Chat.subscription);
+            Chat.subscription = null;
+        }
+
         Chat.subscription = window.supabaseClient
-            .channel('chat-realtime')
+            .channel('chat-live-' + Date.now()) // canal único evita conflitos
             .on('postgres_changes', {
                 event: 'INSERT',
                 schema: 'public',
                 table: 'chat_messages'
             }, (payload) => {
-                const m = payload.new;
-                chatMessages.push({
-                    author: m.team_name || '?',
-                    text: m.message,
-                    avatar: (m.team_name || '?').charAt(0).toUpperCase(),
-                    color: m.avatar_color || 'var(--neon-blue)',
-                    isUser: m.manager_id === window._currentUser?.id,
-                    time: new Date(m.created_at).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })
-                });
+                chatMessages.push(Chat.formatMessage(payload.new));
                 renderChat();
             })
-            .subscribe();
+            .subscribe((status) => {
+                if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+                    // Reconecta após 3 segundos
+                    setTimeout(() => Chat.subscribe(), 3000);
+                }
+            });
     }
 };
 
