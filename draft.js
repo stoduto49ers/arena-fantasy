@@ -593,27 +593,25 @@ const Draft = {
         return Draft.BOT_IDS.includes(managerId);
     },
 
-    // Pick feita por um bot (bypassa validações de usuário)
+    // Pick feita por um bot
     async makeBotPick(botId, player) {
         const slot = Draft.getCurrentSlot();
-        if (!slot || slot.managerId !== botId) return;
+        if (!slot || slot.managerId !== botId) return false;
 
         const idx = Draft.state.draftState.current_pick_index;
         const timerHours = Draft.state.timerHours || 8;
 
-        const { error } = await window.supabaseClient
-            .from('draft_picks')
-            .insert({
-                round: slot.round,
-                pick_number: slot.pickNumber,
-                manager_id: botId,
-                player_id: player.id,
-                player_name: player.name,
-                player_position: player.position,
-                player_club: player.club,
-            });
+        const { error } = await window.supabaseClient.from('draft_picks').insert({
+            round: slot.round,
+            pick_number: slot.pickNumber,
+            manager_id: botId,
+            player_id: player.id,
+            player_name: player.name,
+            player_position: player.position,
+            player_club: player.club,
+        });
 
-        if (error) { console.error('Bot pick error:', error); return; }
+        if (error) { console.error('Bot pick error:', error); return false; }
 
         const nextIdx = idx + 1;
         const isFinished = nextIdx >= Draft.TOTAL_ROUNDS * Draft.state.managers.length;
@@ -626,64 +624,70 @@ const Draft = {
             updated_at: new Date().toISOString()
         }).eq('id', 1);
 
-        await Draft.loadDraftState();
-        await Draft.loadPicks();
-        Draft.render();
-
-        // Continua processando bots em cascata
-        await Draft.processBotQueue();
+        return true;
     },
 
-    // Processa picks de bots em sequência até chegar a vez de um humano
-    async processBotQueue() {
-        if (!Draft.isDraftActive()) return;
-
-        const slot = Draft.getCurrentSlot();
-        if (!slot) return;
-        if (!Draft.isBot(slot.managerId)) return; // vez de humano, para
-
-        const botId = slot.managerId;
-
-        // Delay visual entre picks do bot (1-3s)
-        await new Promise(r => setTimeout(r, 1000 + Math.random() * 2000));
-
-        // Recarrega para garantir estado atualizado
-        await Draft.loadDraftState();
-        await Draft.loadPicks();
-
-        const currentSlot = Draft.getCurrentSlot();
-        if (!currentSlot || currentSlot.managerId !== botId) return;
-        if (!Draft.isDraftActive()) return;
-
+    // Escolhe o melhor jogador para o bot
+    chooseBotPlayer(botId) {
         const available = PLAYERS_DATABASE
             .filter(p => !Draft.state.picks.find(pk => pk.player_id === p.id))
             .sort((a, b) => b.projPoints - a.projPoints);
-        if (!available.length) return;
+        if (!available.length) return null;
 
         const botPicks = Draft.state.picks.filter(p => p.manager_id === botId);
         const byPos = { GOL:0, ZAG:0, LAT:0, MEI:0, ATA:0 };
         botPicks.forEach(p => { if (byPos[p.player_position] !== undefined) byPos[p.player_position]++; });
 
-        let pick = null;
-        if (byPos.GOL === 0) pick = available.find(p => p.position === 'GOL');
-        else if (byPos.ATA < 3) pick = available.find(p => p.position === 'ATA');
-        else if (byPos.MEI < 4) pick = available.find(p => p.position === 'MEI');
-        else if (byPos.ZAG < 2) pick = available.find(p => p.position === 'ZAG');
-        else if (byPos.LAT < 2) pick = available.find(p => p.position === 'LAT');
-        if (!pick) pick = available[0];
-
-        await Draft.makeBotPick(botId, pick);
+        if (byPos.GOL === 0) return available.find(p => p.position === 'GOL') || available[0];
+        if (byPos.ATA < 3) return available.find(p => p.position === 'ATA') || available[0];
+        if (byPos.MEI < 4) return available.find(p => p.position === 'MEI') || available[0];
+        if (byPos.ZAG < 2) return available.find(p => p.position === 'ZAG') || available[0];
+        if (byPos.LAT < 2) return available.find(p => p.position === 'LAT') || available[0];
+        return available[0];
     },
 
-    // Verifica se a pick atual é de um bot e inicia a fila
+    // Processa picks de bots em sequência
     async checkBotTurn() {
         if (!Draft.isDraftActive()) return;
+
         const slot = Draft.getCurrentSlot();
         if (!slot || !Draft.isBot(slot.managerId)) return;
 
-        // Delay inicial antes de começar
-        await new Promise(r => setTimeout(r, 1500 + Math.random() * 1500));
-        await Draft.processBotQueue();
+        // Delay visual de 1.5s
+        await new Promise(r => setTimeout(r, 1500));
+
+        // Loop: continua enquanto for vez de bot
+        let maxIterations = 20; // segurança contra loop infinito
+        while (maxIterations-- > 0) {
+            if (!Draft.isDraftActive()) break;
+
+            await Draft.loadDraftState();
+            await Draft.loadPicks();
+
+            const current = Draft.getCurrentSlot();
+            if (!current || !Draft.isBot(current.managerId)) break;
+
+            const player = Draft.chooseBotPlayer(current.managerId);
+            if (!player) break;
+
+            const success = await Draft.makeBotPick(current.managerId, player);
+            if (!success) break;
+
+            // Atualiza o board visualmente
+            await Draft.loadDraftState();
+            await Draft.loadPicks();
+            Draft.renderBoard();
+            Draft.renderPool();
+            Draft.renderMiniPitch();
+
+            // Pequena pausa entre picks de bots consecutivos
+            await new Promise(r => setTimeout(r, 800));
+        }
+
+        // Recarrega tudo ao terminar
+        await Draft.loadDraftState();
+        await Draft.loadPicks();
+        Draft.render();
     },
 
     // Verifica se o usuário atual é o comissário (primeiro manager cadastrado)
