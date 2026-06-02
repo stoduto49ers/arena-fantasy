@@ -63,20 +63,8 @@ const Draft = {
 
     // --- Calcula de quem é a vez (snake draft) ---
     getPickOrder() {
+        const managers = Draft.getOrderedManagers();
         const order = [];
-        // Usa pick_order salvo no banco se existir, senão usa ordem padrão
-        let managers = [...Draft.state.managers];
-        const savedOrder = Draft.state.draftState?.pick_order;
-        if (savedOrder) {
-            try {
-                const ids = typeof savedOrder === 'string' ? JSON.parse(savedOrder) : savedOrder;
-                const sorted = ids.map(id => managers.find(m => m.id === id)).filter(Boolean);
-                // Adiciona managers não incluídos no sorteo (bots novos, etc)
-                const missing = managers.filter(m => !ids.includes(m.id));
-                managers = [...sorted, ...missing];
-            } catch(e) {}
-        }
-
         for (let round = 0; round < Draft.TOTAL_ROUNDS; round++) {
             const roundManagers = round % 2 === 0
                 ? [...managers]
@@ -337,6 +325,21 @@ const Draft = {
     },
 
     // --- Grade do draft board ---
+    // Retorna managers na ordem sorteada (ou padrão se não sorteado)
+    getOrderedManagers() {
+        let managers = [...Draft.state.managers];
+        const savedOrder = Draft.state.draftState?.pick_order;
+        if (savedOrder) {
+            try {
+                const ids = typeof savedOrder === 'string' ? JSON.parse(savedOrder) : savedOrder;
+                const sorted = ids.map(id => managers.find(m => m.id === id)).filter(Boolean);
+                const missing = managers.filter(m => !ids.includes(m.id));
+                managers = [...sorted, ...missing];
+            } catch(e) {}
+        }
+        return managers;
+    },
+
     renderBoard() {
         const grid = document.getElementById('draft-board-grid');
         if (!grid) return;
@@ -347,10 +350,8 @@ const Draft = {
             return;
         }
 
-        const managers = Draft.state.managers;
+        const managers = Draft.getOrderedManagers(); // usa ordem sorteada
         const currentIdx = Draft.state.draftState?.current_pick_index || 0;
-
-        // Cabeçalho — colunas fixas na ordem original
         let html = '<div class="draft-board-row draft-board-header">';
         html += '<div class="draft-board-cell draft-board-round-label">Rd</div>';
         managers.forEach(m => {
