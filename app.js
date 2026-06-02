@@ -271,6 +271,7 @@ function switchTab(tabId) {
     }
     if (tabId === "jogos-tab" && typeof Jogos !== "undefined") Jogos.load();
     if (tabId === "news-tab" && typeof News !== "undefined") News.load();
+    if (tabId === "matchup-tab") Matchup.render();
     if (tabId === "team-tab") {
         loadMyDraftedPlayers();
         renderPitch();
@@ -1237,40 +1238,28 @@ function setupLineup() {
 
 function changeFormation(newFormation) {
     if (!FORMATIONS[newFormation]) return;
-
-    const oldCounts = FORMATIONS[activeFormation].counts;
-    const newCounts = FORMATIONS[newFormation].counts;
     activeFormation = newFormation;
+    const newCounts = FORMATIONS[newFormation].counts;
 
-    // Para cada posição, ajusta o tamanho do array mantendo os jogadores
-    Object.keys(newCounts).forEach(pos => {
-        const current = lineup[pos] || [];
-        const newSize = newCounts[pos];
-        const oldSize = oldCounts[pos] || 0;
-
-        if (newSize > oldSize) {
-            // Cresceu: adiciona slots vazios
-            while (lineup[pos].length < newSize) lineup[pos].push(null);
-        } else if (newSize < oldSize) {
-            // Diminuiu: move excedentes para reservas
-            const extras = lineup[pos].splice(newSize);
-            extras.forEach(p => {
-                if (!p) return;
-                const ri = lineup.RESERVAS.indexOf(null);
-                if (ri !== -1) lineup.RESERVAS[ri] = p;
-            });
-        }
+    // Coleta todos os jogadores titulares atuais
+    const allPlayers = { GOL:[], ZAG:[], LAT:[], MEI:[], ATA:[] };
+    ['GOL','ZAG','LAT','MEI','ATA'].forEach(pos => {
+        (lineup[pos] || []).forEach(p => { if (p) allPlayers[pos].push(p); });
     });
 
-    // LAT zerado em formações sem lateral
-    if (newCounts.LAT === 0) {
-        lineup.LAT.forEach(p => {
-            if (!p) return;
+    // Reconstrói lineup com novo tamanho
+    ['GOL','ZAG','LAT','MEI','ATA'].forEach(pos => {
+        const slots = newCounts[pos] || 0;
+        lineup[pos] = [];
+        for (let i = 0; i < slots; i++) {
+            lineup[pos].push(allPlayers[pos][i] || null);
+        }
+        // Jogadores excedentes vão para reservas
+        for (let i = slots; i < allPlayers[pos].length; i++) {
             const ri = lineup.RESERVAS.indexOf(null);
-            if (ri !== -1) lineup.RESERVAS[ri] = p;
-        });
-        lineup.LAT = [];
-    }
+            if (ri !== -1) lineup.RESERVAS[ri] = allPlayers[pos][i];
+        }
+    });
 
     renderPitch();
     renderMarket();
@@ -1516,140 +1505,150 @@ function generateSlotHtml(pos, idx, player, defaultName) {
 // --- CONFRONTOS (MATCHUPS) ---
 function setupMatchup() {}
 
-function renderMatchup() {
-    // Calcula pontos/projeções para renderizar no header do Matchup (titulares apenas)
-    let homeProj = 0.0;
-    let homeReal = 0.0;
+// Sistema de confrontos com navegação por rodada
+const Matchup = {
+    currentRound: 1,
+    totalRounds: 38,
+    schedule: null, // gerado uma vez com base nos managers
 
-    const starterPositions = ["GOL", "ZAG", "LAT", "MEI", "ATA"];
-    starterPositions.forEach(pos => {
-        const arr = lineup[pos];
-        if (arr) {
-            arr.forEach(p => {
-                if (p) {
-                    homeProj += p.projPoints;
-                    homeReal += p.realPoints;
+    // Gera calendário round-robin para todos os managers
+    generateSchedule(managers) {
+        const schedule = {};
+        const n = managers.length;
+        // Round robin: cada manager joga contra todos os outros
+        for (let round = 1; round <= Math.max(n - 1, 1); round++) {
+            schedule[round] = [];
+            for (let i = 0; i < Math.floor(n / 2); i++) {
+                const home = managers[i % n];
+                const away = managers[(n - 1 - i + round) % n];
+                if (home && away && home.id !== away.id) {
+                    schedule[round].push({ home, away });
                 }
-            });
-        }
-    });
-
-    // Determina os titulares do Bot
-    let botStarters = [];
-    const positionsNeeded = FORMATIONS[activeFormation].counts;
-    Object.keys(positionsNeeded).forEach(pos => {
-        const neededCount = positionsNeeded[pos];
-        let posPlayers = botALineup
-            .filter(p => p.position === pos)
-            .sort((a, b) => b.projPoints - a.projPoints);
-        for (let i = 0; i < neededCount; i++) {
-            if (posPlayers[i]) {
-                botStarters.push(posPlayers[i]);
             }
         }
-    });
+        // Repete para completar 38 rodadas
+        for (let round = n; round <= 38; round++) {
+            schedule[round] = schedule[((round - 1) % (n - 1)) + 1] || [];
+        }
+        return schedule;
+    },
 
-    // Se o botALineup estiver vazio, preenche com um mock fixo de pontuação
-    let awayProj = 75.10;
-    let awayReal = 0.0;
-    if (botALineup.length > 0) {
-        awayProj = 0.0;
-        botStarters.forEach(p => {
-            awayProj += p.projPoints;
-            awayReal += p.realPoints;
+    async render() {
+        const user = window._currentUser;
+        if (!user) return;
+
+        // Carrega managers se não tiver
+        const { data: allManagers } = await window.supabaseClient
+            .from('managers').select('id, team_name, total_points');
+        if (!allManagers?.length) return;
+
+        const BOT_PREFIX = '00000000-0000-0000-0000-';
+        const managers = allManagers.filter(m => !m.id.startsWith(BOT_PREFIX));
+
+        if (!Matchup.schedule) {
+            Matchup.schedule = Matchup.generateSchedule(managers);
+        }
+
+        const round = Matchup.currentRound;
+        document.getElementById('matchup-round-label').textContent = `Rodada ${round}`;
+
+        // Acha o confronto do usuário nessa rodada
+        const roundMatches = Matchup.schedule[round] || [];
+        const myMatch = roundMatches.find(m => m.home?.id === user.id || m.away?.id === user.id);
+
+        const myManager = managers.find(m => m.id === user.id);
+        const myName = currentManagerName || myManager?.team_name || 'Meu Time';
+        const myLetter = myName.charAt(0).toUpperCase();
+
+        let opponentName = '—';
+        let opponentLetter = '?';
+
+        if (myMatch) {
+            const opp = myMatch.home?.id === user.id ? myMatch.away : myMatch.home;
+            opponentName = opp?.team_name || 'Adversário';
+            opponentLetter = opponentName.charAt(0).toUpperCase();
+        }
+
+        // Calcula projeção do meu time
+        let homeProj = 0;
+        ['GOL','ZAG','LAT','MEI','ATA'].forEach(pos => {
+            (lineup[pos] || []).forEach(p => { if (p) homeProj += (p.projPoints || 0); });
         });
-    }
 
-    document.getElementById("matchup-home-projection").innerText = homeProj.toFixed(2);
-    document.getElementById("matchup-away-projection").innerText = awayProj.toFixed(2);
-
-    if (isGamesSimulated) {
-        document.getElementById("matchup-home-score").innerText = homeReal.toFixed(2);
-        document.getElementById("matchup-away-score").innerText = awayReal.toFixed(2);
-        
-        // Ajusta barra h2h com base nos pontos reais
-        let total = homeReal + awayReal;
-        if (total > 0) {
-            let pct = (homeReal / total) * 100;
-            document.getElementById("h2h-bar-home-width").style.width = `${pct}%`;
-            document.getElementById("h2h-bar-away-width").style.width = `${100 - pct}%`;
-            
-            let labelText = pct >= 50 
-                ? `Vitória: ${pct.toFixed(0)}% (Você)` 
-                : `Vitória: ${(100-pct).toFixed(0)}% (Galácticos BR)`;
-            document.querySelector(".projection-label:last-child").innerText = labelText;
-        }
-    } else {
-        document.getElementById("matchup-home-score").innerText = "0.00";
-        document.getElementById("matchup-away-score").innerText = "0.00";
-        
-        // Barra baseada em projeção
-        let total = homeProj + awayProj;
-        if (total > 0) {
-            let pct = (homeProj / total) * 100;
-            document.getElementById("h2h-bar-home-width").style.width = `${pct}%`;
-            document.getElementById("h2h-bar-away-width").style.width = `${100 - pct}%`;
-        }
-    }
-
-    // Renderiza a lista comparativa de atletas (Posição por Posição)
-    const listContainer = document.getElementById("matchup-comparison-rows");
-    listContainer.innerHTML = "";
-
-    // Posições sequenciais para o comparativo baseadas no esquema atual
-    const flatPositions = [];
-    const formationConfig = FORMATIONS[activeFormation];
-    formationConfig.rows.forEach(rowConfig => {
-        if (rowConfig.pos === "DEFENSE") {
-            rowConfig.slots.forEach(slot => {
-                flatPositions.push({ pos: slot.pos, idx: slot.idx, name: slot.name });
-            });
-        } else {
-            for (let idx = 0; idx < rowConfig.count; idx++) {
-                const displayName = rowConfig.names[idx] || rowConfig.pos;
-                flatPositions.push({ pos: rowConfig.pos, idx: idx, name: displayName });
+        // Projeção do adversário (picks do banco se existir)
+        let awayProj = 0;
+        if (myMatch) {
+            const oppId = myMatch.home?.id === user.id ? myMatch.away?.id : myMatch.home?.id;
+            if (oppId) {
+                const { data: oppPicks } = await window.supabaseClient
+                    .from('draft_picks').select('player_id').eq('manager_id', oppId);
+                (oppPicks || []).forEach(pick => {
+                    const p = PLAYERS_DATABASE.find(x => x.id === pick.player_id);
+                    if (p) awayProj += (p.projPoints || 0);
+                });
+                // Usa só os 11 titulares estimados (top 11 por projeção)
+                awayProj = awayProj > 0 ? Math.round(awayProj / Math.max((oppPicks?.length || 18) / 11, 1) * 10) / 10 : 75;
             }
         }
-    });
 
-    flatPositions.forEach(slot => {
-        const homePlayer = lineup[slot.pos][slot.idx];
-        
-        // Acha o i-ésimo jogador daquela posição nos titulares do bot
-        let matchingPosBots = botStarters.filter(x => x.position === slot.pos);
-        let botMatch = matchingPosBots[slot.idx] || null;
+        // Atualiza UI
+        const q = id => document.getElementById(id);
+        if (q('matchup-home-name')) q('matchup-home-name').textContent = myName;
+        if (q('matchup-home-avatar')) q('matchup-home-avatar').textContent = myLetter;
+        if (q('matchup-away-name')) q('matchup-away-name').textContent = opponentName;
+        if (q('matchup-away-avatar')) q('matchup-away-avatar').textContent = opponentLetter;
+        if (q('matchup-home-projection')) q('matchup-home-projection').textContent = homeProj.toFixed(1);
+        if (q('matchup-away-projection')) q('matchup-away-projection').textContent = awayProj.toFixed(1);
+        if (q('matchup-home-score')) q('matchup-home-score').textContent = '—';
+        if (q('matchup-away-score')) q('matchup-away-score').textContent = '—';
 
-        let homeHtml = `<span style="color:var(--text-muted); font-style:italic;">Não escalado</span>`;
-        let awayHtml = `<span style="color:var(--text-muted); font-style:italic;">Não escalado</span>`;
+        const total = homeProj + awayProj || 100;
+        const pct = Math.round((homeProj / total) * 100);
+        if (q('h2h-bar-home-width')) q('h2h-bar-home-width').style.width = `${pct}%`;
+        if (q('h2h-bar-away-width')) q('h2h-bar-away-width').style.width = `${100-pct}%`;
+        if (q('matchup-bar-home-label')) q('matchup-bar-home-label').textContent = `${myName}: ${homeProj.toFixed(1)} pts`;
+        if (q('matchup-bar-away-label')) q('matchup-bar-away-label').textContent = `${opponentName}: ${awayProj.toFixed(1)} pts`;
+        if (q('matchup-win-prob-label')) q('matchup-win-prob-label').textContent = `Aproximação de Vitória: ${pct}% (${pct >= 50 ? myName : opponentName})`;
 
-        if (homePlayer) {
-            let score = isGamesSimulated ? homePlayer.realPoints.toFixed(2) : homePlayer.projPoints.toFixed(2);
-            homeHtml = `<strong>${homePlayer.name}</strong> <span style="font-size:11px;color:var(--text-secondary); margin-left:6px;">(${score} pts)</span>`;
+        // Comparativo posição a posição
+        const listContainer = q('matchup-comparison-rows');
+        if (listContainer) {
+            listContainer.innerHTML = '';
+            const slots = [];
+            FORMATIONS[activeFormation].rows.forEach(row => {
+                if (row.pos === 'DEFENSE') row.slots.forEach(s => slots.push(s));
+                else for (let i = 0; i < row.count; i++) slots.push({ pos: row.pos, idx: i, name: (row.names||[])[i] || row.pos });
+            });
+            slots.forEach(slot => {
+                const player = lineup[slot.pos]?.[slot.idx];
+                const row = document.createElement('div');
+                row.className = 'player-market-row';
+                row.style.cssText = 'grid-template-columns:1fr 2fr 1fr 2fr; padding:10px 20px;';
+                const hHtml = player ? `<strong>${player.name}</strong> <span style="font-size:11px;color:var(--text-muted);">(${player.projPoints}pts)</span>` : '<span style="color:var(--text-muted);">Não escalado</span>';
+                row.innerHTML = `
+                    <div style="font-weight:700;color:var(--text-secondary);font-size:11px;text-transform:uppercase;">${slot.name}</div>
+                    <div style="font-size:13px;color:var(--neon-blue);">${hHtml}</div>
+                    <div style="text-align:center;font-weight:800;color:var(--text-muted);">VS</div>
+                    <div style="font-size:13px;color:var(--neon-purple);text-align:right;"><span style="color:var(--text-muted);font-style:italic;">—</span></div>`;
+                listContainer.appendChild(row);
+            });
         }
+    },
 
-        if (botMatch) {
-            let score = isGamesSimulated ? botMatch.realPoints.toFixed(2) : botMatch.projPoints.toFixed(2);
-            awayHtml = `<strong>${botMatch.name}</strong> <span style="font-size:11px;color:var(--text-secondary); margin-left:6px;">(${score} pts)</span>`;
-        }
+    prevRound() {
+        if (Matchup.currentRound > 1) { Matchup.currentRound--; Matchup.render(); }
+    },
+    nextRound() {
+        if (Matchup.currentRound < 38) { Matchup.currentRound++; Matchup.render(); }
+    }
+};
 
-        const row = document.createElement("div");
-        // Reutiliza o grid styling da tabela de mercado
-        row.className = "player-market-row";
-        row.style.gridTemplateColumns = "1fr 2fr 1fr 2fr";
-        row.style.padding = "10px 20px";
-        
-        row.innerHTML = `
-            <div style="font-weight:700; color:var(--text-secondary); font-size:11px; text-transform:uppercase;">${slot.name}</div>
-            <div style="font-size:13px; color:var(--neon-blue);">${homeHtml}</div>
-            <div style="text-align:center; font-weight:800; color:var(--text-muted);">VS</div>
-            <div style="font-size:13px; color:var(--neon-purple); text-align:right;">${awayHtml}</div>
-        `;
-        listContainer.appendChild(row);
-    });
-}
+function renderMatchup() { Matchup.render(); }
+
 
 // Expondo funções necessárias globalmente para os handlers de eventos inline
 window.switchTab = switchTab;
 window.draftPlayer = draftPlayer;
 window.buyPlayerFromMarket = buyPlayerFromMarket;
 window.sellPlayerFromMarket = sellPlayerFromMarket;
+window.Matchup = Matchup;

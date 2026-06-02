@@ -600,57 +600,64 @@
                 <!-- --- TAB: MATCHUP --- -->
                 <section class="tab-content" id="matchup-tab">
                     <div class="matchup-grid">
+                        <!-- Navegação de rodadas -->
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+                            <button class="action-btn" onclick="Matchup.prevRound()" style="padding:8px 16px;">
+                                <i class="fa-solid fa-chevron-left"></i> Anterior
+                            </button>
+                            <div style="text-align:center;">
+                                <div id="matchup-round-label" style="font-size:16px; font-weight:800;">Rodada 1</div>
+                                <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">Confronto Direto</div>
+                            </div>
+                            <button class="action-btn" onclick="Matchup.nextRound()" style="padding:8px 16px;">
+                                Próxima <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
+
                         <!-- Head-to-Head Card -->
                         <div class="matchup-header-card">
-                            <!-- Home Team -->
                             <div class="matchup-team-summary home">
-                                <div class="matchup-avatar" style="background: var(--grad-primary); color: var(--bg-darkest);">P</div>
+                                <div class="matchup-avatar" id="matchup-home-avatar" style="background:var(--grad-primary);color:var(--bg-darkest);">?</div>
                                 <div>
-                                    <h3 class="matchup-team-name">Parças FC (Você)</h3>
-                                    <span class="matchup-team-record">Projeção: <strong id="matchup-home-projection">78.50</strong> pts</span>
+                                    <h3 class="matchup-team-name" id="matchup-home-name">Meu Time</h3>
+                                    <span class="matchup-team-record">Proj: <strong id="matchup-home-projection">0.00</strong> pts</span>
                                 </div>
                             </div>
-                            
-                            <!-- Score Display -->
                             <div class="matchup-vs-score">
                                 <div class="matchup-vs-divider">VS</div>
                                 <div class="matchup-score-board">
-                                    <span class="matchup-score home-score" id="matchup-home-score">0.00</span>
-                                    <span style="font-size: 20px; font-weight: 700; color: var(--text-muted);">:</span>
-                                    <span class="matchup-score away-score" id="matchup-away-score">0.00</span>
+                                    <span class="matchup-score home-score" id="matchup-home-score">—</span>
+                                    <span style="font-size:20px;font-weight:700;color:var(--text-muted);">:</span>
+                                    <span class="matchup-score away-score" id="matchup-away-score">—</span>
                                 </div>
-                                <div class="projection-label">Pontuação Realizada</div>
+                                <div class="projection-label">Projeção de Pontos</div>
                             </div>
-                            
-                            <!-- Away Team -->
                             <div class="matchup-team-summary away">
-                                <div class="matchup-avatar" style="background: var(--grad-purple); color: #fff;">G</div>
+                                <div class="matchup-avatar" id="matchup-away-avatar" style="background:var(--grad-purple);color:#fff;">?</div>
                                 <div>
-                                    <h3 class="matchup-team-name">Galácticos BR</h3>
-                                    <span class="matchup-team-record">Projeção: <strong id="matchup-away-projection">75.10</strong> pts</span>
+                                    <h3 class="matchup-team-name" id="matchup-away-name">Adversário</h3>
+                                    <span class="matchup-team-record">Proj: <strong id="matchup-away-projection">0.00</strong> pts</span>
                                 </div>
                             </div>
                         </div>
-                        
-                        <!-- Visual Projections Bar -->
-                        <div class="glass-panel" style="padding: 16px 24px;">
-                            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; margin-bottom: 8px;">
-                                <span style="color: var(--neon-blue);">Parças FC Proj: 78.50</span>
-                                <span style="color: var(--neon-purple);">Galácticos BR Proj: 75.10</span>
+
+                        <!-- Barra de probabilidade -->
+                        <div class="glass-panel" style="padding:16px 24px;">
+                            <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:8px;">
+                                <span id="matchup-bar-home-label" style="color:var(--neon-blue);">—</span>
+                                <span id="matchup-bar-away-label" style="color:var(--neon-purple);">—</span>
                             </div>
                             <div class="h2h-progress-container">
-                                <div class="h2h-bar-home" id="h2h-bar-home-width" style="width: 51%;"></div>
-                                <div class="h2h-bar-away" id="h2h-bar-away-width" style="width: 49%;"></div>
+                                <div class="h2h-bar-home" id="h2h-bar-home-width" style="width:50%;"></div>
+                                <div class="h2h-bar-away" id="h2h-bar-away-width" style="width:50%;"></div>
                             </div>
-                            <div style="text-align: center;" class="projection-label">Aproximação de Vitória: 51% (Parças FC)</div>
+                            <div style="text-align:center;" id="matchup-win-prob-label" class="projection-label">Aproximação de Vitória: 50%</div>
                         </div>
-                        
-                        <!-- Detail list comparing player by player -->
+
+                        <!-- Comparativo posição a posição -->
                         <div class="glass-panel">
-                            <h3><i class="fa-solid fa-list-ol" style="color: var(--neon-blue);"></i> Comparativo Posição por Posição</h3>
-                            <div id="matchup-comparison-rows" class="market-list">
-                                <!-- Populated dynamically by JS -->
-                            </div>
+                            <h3><i class="fa-solid fa-list-ol" style="color:var(--neon-blue);"></i> Comparativo Posição por Posição</h3>
+                            <div id="matchup-comparison-rows" class="market-list"></div>
                         </div>
                     </div>
                 </section>
