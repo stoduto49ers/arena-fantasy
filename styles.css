@@ -1164,7 +1164,9 @@ body {
     border-left: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
-    height: 100%;
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
     z-index: 5;
 }
 
@@ -1199,11 +1201,14 @@ body {
 .chat-messages {
     flex: 1;
     min-height: 0;
+    max-height: calc(100vh - 140px);
     overflow-y: auto;
-    padding: 20px;
+    overflow-x: hidden;
+    padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
+    scroll-behavior: smooth;
 }
 
 .message-bubble {
