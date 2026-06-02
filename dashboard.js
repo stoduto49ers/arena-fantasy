@@ -196,12 +196,16 @@ const Dashboard = {
         tbody.innerHTML = list.map((m, i) => {
             const isMe = m.id === uid;
             const letter = (m.team_name || '?').charAt(0).toUpperCase();
+            const personalName = m.display_name || m.email?.split('@')[0] || '';
+            const label = isMe
+                ? `${m.team_name} <span style="font-size:11px; color:var(--text-muted);">(${personalName})</span>`
+                : `${m.team_name} <span style="font-size:11px; color:var(--text-muted);">(${personalName})</span>`;
             return `<tr style="${isMe ? 'background:rgba(0,242,254,0.06);' : ''}">
                 <td>
                     <div class="standing-team">
                         <span style="font-weight:700; width:18px; color:var(--text-muted); font-size:12px;">${i + 1}</span>
                         <div class="team-avatar" style="background:var(--grad-${isMe ? 'primary' : 'dark'}); color:${isMe ? 'var(--bg-darkest)' : 'var(--text-secondary)'};">${letter}</div>
-                        <span style="${isMe ? 'color:var(--neon-blue); font-weight:700;' : ''}">${m.team_name}${isMe ? ' (você)' : ''}</span>
+                        <span style="${isMe ? 'color:var(--neon-blue); font-weight:700;' : ''}">${label}</span>
                     </div>
                 </td>
                 <td class="standing-record">${m.wins || 0} - ${m.losses || 0}</td>

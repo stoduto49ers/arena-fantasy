@@ -47,6 +47,15 @@ const Profile = {
                 <!-- Tab: Info do Time -->
                 <div id="profile-tab-info" class="cfg-form" style="margin-top:16px;">
                     <div class="cfg-field">
+                        <label>Seu Nome / Apelido</label>
+                        <div class="auth-input-wrap">
+                            <i class="fa-solid fa-user"></i>
+                            <input type="text" id="profile-display-name"
+                                value="${m?.display_name || m?.email?.split('@')[0] || ''}" maxlength="30"
+                                placeholder="Ex: Stoduto">
+                        </div>
+                    </div>
+                    <div class="cfg-field">
                         <label>Nome do Time</label>
                         <div class="auth-input-wrap">
                             <i class="fa-solid fa-shield-halved"></i>
@@ -129,8 +138,10 @@ const Profile = {
         const msgEl = document.getElementById('profile-msg');
         if (!teamName) { Profile.showMsg(msgEl, 'Digite o nome do time.', 'error'); return; }
 
+        const displayName = document.getElementById('profile-display-name')?.value?.trim() || teamName;
         const { error } = await window.supabaseClient.from('managers').update({
             team_name: teamName,
+            display_name: displayName,
             avatar_letter: teamName.charAt(0).toUpperCase(),
             avatar_color: color,
         }).eq('id', Profile.state.currentUser.id);

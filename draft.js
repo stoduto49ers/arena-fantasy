@@ -64,12 +64,24 @@ const Draft = {
     // --- Calcula de quem é a vez (snake draft) ---
     getPickOrder() {
         const order = [];
-        const n = Draft.state.managers.length || Draft.TOTAL_TEAMS;
+        // Usa pick_order salvo no banco se existir, senão usa ordem padrão
+        let managers = [...Draft.state.managers];
+        const savedOrder = Draft.state.draftState?.pick_order;
+        if (savedOrder) {
+            try {
+                const ids = typeof savedOrder === 'string' ? JSON.parse(savedOrder) : savedOrder;
+                const sorted = ids.map(id => managers.find(m => m.id === id)).filter(Boolean);
+                // Adiciona managers não incluídos no sorteo (bots novos, etc)
+                const missing = managers.filter(m => !ids.includes(m.id));
+                managers = [...sorted, ...missing];
+            } catch(e) {}
+        }
+
         for (let round = 0; round < Draft.TOTAL_ROUNDS; round++) {
             const roundManagers = round % 2 === 0
-                ? [...Draft.state.managers]
-                : [...Draft.state.managers].reverse();
-            roundManagers.forEach((m, i) => {
+                ? [...managers]
+                : [...managers].reverse();
+            roundManagers.forEach(m => {
                 order.push({
                     pickNumber: order.length + 1,
                     round: round + 1,
