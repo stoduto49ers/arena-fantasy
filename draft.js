@@ -641,23 +641,45 @@ const Draft = {
     // Reset completo do draft
     async commissionerReset() {
         if (!Draft.isCommissioner()) return;
-        if (!confirm('Resetar o draft? TODAS as picks serão apagadas e o draft voltará ao início.')) return;
+        if (!confirm('⚠️ HARD RESET: Todas as picks serão apagadas e o draft voltará ao estado inicial. Confirma?')) return;
 
-        // Apaga todas as picks
-        await window.supabaseClient.from('draft_picks').delete().neq('id', 0);
+        Draft.showLoading(true);
 
-        // Reseta o estado
-        await window.supabaseClient.from('draft_state').update({
-            current_pick_index: 0,
-            is_finished: false,
-            draft_status: 'pending',
-            timer_expires_at: null,
-            updated_at: new Date().toISOString()
-        }).eq('id', 1);
+        try {
+            // 1. Apaga todas as picks
+            await window.supabaseClient.from('draft_picks').delete().neq('id', 0);
 
-        await Draft.loadPicks();
-        await Draft.loadDraftState();
-        Draft.render();
+            // 2. Reseta o estado completamente
+            await window.supabaseClient.from('draft_state').update({
+                current_pick_index: 0,
+                is_finished: false,
+                draft_status: 'pending',
+                timer_expires_at: null,
+                updated_at: new Date().toISOString()
+            }).eq('id', 1);
+
+            // 3. Recarrega tudo
+            await Draft.loadDraftState();
+            await Draft.loadPicks();
+            await Draft.loadManagers();
+
+            Draft.render();
+
+            // Avisa no chat
+            if (window._currentUser && window.supabaseClient) {
+                await window.supabaseClient.from('chat_messages').insert({
+                    league_id: window._currentLeague?.id || null,
+                    manager_id: window._currentUser.id,
+                    team_name: '⚙️ Sistema',
+                    avatar_color: '#ff4757',
+                    message: '🔄 O draft foi resetado pelo comissário. Aguardando novo início.'
+                });
+            }
+        } catch(e) {
+            alert('Erro ao resetar: ' + e.message);
+        } finally {
+            Draft.showLoading(false);
+        }
     },
 
     // --- Painel do comissário para configurar e iniciar o draft ---
