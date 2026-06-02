@@ -1236,54 +1236,43 @@ function setupLineup() {
 function changeFormation(newFormation) {
     if (!FORMATIONS[newFormation]) return;
 
+    const oldCounts = FORMATIONS[activeFormation].counts;
+    const newCounts = FORMATIONS[newFormation].counts;
     activeFormation = newFormation;
-    const targetCounts = FORMATIONS[newFormation].counts;
 
-    // Ajusta cada posição do lineup liberando e reembolsando os excedentes
-    Object.keys(targetCounts).forEach(pos => {
-        const currentArr = lineup[pos] || [];
-        const targetCount = targetCounts[pos];
+    // Para cada posição, ajusta o tamanho do array mantendo os jogadores
+    Object.keys(newCounts).forEach(pos => {
+        const current = lineup[pos] || [];
+        const newSize = newCounts[pos];
+        const oldSize = oldCounts[pos] || 0;
 
-        if (currentArr.length > targetCount) {
-            // Remove jogadores extras e reembolsa
-            for (let i = targetCount; i < currentArr.length; i++) {
-                const player = currentArr[i];
-                if (player) {
-                    userBudget += player.cost;
-                    const dbPlayer = players.find(p => p.id === player.id);
-                    if (dbPlayer) {
-                        dbPlayer.status = "disponivel";
-                    }
-                }
-            }
-            lineup[pos] = currentArr.slice(0, targetCount);
-        } else if (currentArr.length < targetCount) {
-            // Preenche com nulls extras
-            while (lineup[pos].length < targetCount) {
-                lineup[pos].push(null);
-            }
+        if (newSize > oldSize) {
+            // Cresceu: adiciona slots vazios
+            while (lineup[pos].length < newSize) lineup[pos].push(null);
+        } else if (newSize < oldSize) {
+            // Diminuiu: move excedentes para reservas
+            const extras = lineup[pos].splice(newSize);
+            extras.forEach(p => {
+                if (!p) return;
+                const ri = lineup.RESERVAS.indexOf(null);
+                if (ri !== -1) lineup.RESERVAS[ri] = p;
+            });
         }
     });
 
-    // Se já simulamos a rodada, reseta a simulação porque o time mudou
-    if (isGamesSimulated) {
-        isGamesSimulated = false;
-        players.forEach(p => p.realPoints = 0.0);
-        document.getElementById("matchup-home-score").innerText = "0.00";
-        document.getElementById("matchup-away-score").innerText = "0.00";
-        addActivityLog("system", "Esquema tático alterado. Pontuação da rodada resetada.");
+    // LAT zerado em formações sem lateral
+    if (newCounts.LAT === 0) {
+        lineup.LAT.forEach(p => {
+            if (!p) return;
+            const ri = lineup.RESERVAS.indexOf(null);
+            if (ri !== -1) lineup.RESERVAS[ri] = p;
+        });
+        lineup.LAT = [];
     }
 
-    addActivityLog("system", `Esquema tático alterado para <strong>${newFormation}</strong>.`);
-    
-    // Atualiza exibições
-    // Limpa lineup e recarrega do banco com nova formação
-    Object.keys(lineup).forEach(pos => {
-        if (pos !== 'RESERVAS' && pos !== 'LESOES') {
-            lineup[pos] = Array(FORMATIONS[newFormation]?.counts[pos] || lineup[pos].length).fill(null);
-        }
-    });
-    loadMyDraftedPlayers();
+    renderPitch();
+    renderMarket();
+    updateLineupStats();
 }
 
 function updateLineupStats() {
