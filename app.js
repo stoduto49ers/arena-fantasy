@@ -1254,10 +1254,15 @@ function changeFormation(newFormation) {
         for (let i = 0; i < slots; i++) {
             lineup[pos].push(allPlayers[pos][i] || null);
         }
-        // Jogadores excedentes vão para reservas
+        // Jogadores excedentes vão para reservas (expande se precisar)
         for (let i = slots; i < allPlayers[pos].length; i++) {
+            const player = allPlayers[pos][i];
             const ri = lineup.RESERVAS.indexOf(null);
-            if (ri !== -1) lineup.RESERVAS[ri] = allPlayers[pos][i];
+            if (ri !== -1) {
+                lineup.RESERVAS[ri] = player;
+            } else {
+                lineup.RESERVAS.push(player); // expande reservas
+            }
         }
     });
 
@@ -1302,12 +1307,11 @@ function renderPitch() {
     const formationConfig = FORMATIONS[activeFormation];
     if (!formationConfig) return;
 
-    // Garante que lineup tem tamanho correto para a formação atual
+    // Garante que lineup tem slots suficientes para a formação (só adiciona, não remove)
     const counts = formationConfig.counts;
     Object.keys(counts).forEach(pos => {
         if (!lineup[pos]) lineup[pos] = [];
         while (lineup[pos].length < counts[pos]) lineup[pos].push(null);
-        if (lineup[pos].length > counts[pos]) lineup[pos].length = counts[pos];
     });
     
     formationConfig.rows.forEach(rowConfig => {
