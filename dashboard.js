@@ -41,8 +41,11 @@ const Dashboard = {
                 .select('*')
                 .order('total_points', { ascending: false });
             if (error) throw error;
-            Dashboard.state.managers = data || [];
-            Dashboard.state.myManager = data?.find(m => m.id === Dashboard.state.currentUser?.id);
+            // Filtra bots localmente
+            const BOT_PREFIX = '00000000-0000-0000-0000-';
+            const real = (data || []).filter(m => !m.id.startsWith(BOT_PREFIX));
+            Dashboard.state.managers = real;
+            Dashboard.state.myManager = real.find(m => m.id === Dashboard.state.currentUser?.id);
         } catch(e) {
             console.warn('loadManagers error:', e);
         }

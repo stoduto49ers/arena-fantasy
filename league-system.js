@@ -50,12 +50,15 @@ const LeagueSystem = {
         document.getElementById('app-container-wrapper').style.display = 'grid';
 
         const user = LeagueSystem.state.user;
+        window._currentUser = user; // garante antes do setTimeout
 
-        // Pequeno delay para garantir que o DOM está visível antes de inicializar
+        // Delay para o browser renderizar o grid antes de inicializar
         setTimeout(() => {
             if (typeof initApp === 'function') initApp(user);
-            if (typeof Dashboard !== 'undefined') Dashboard.init(user);
-            if (typeof Draft !== 'undefined') Draft.init(user);
+            setTimeout(() => {
+                if (typeof Dashboard !== 'undefined') Dashboard.init(user);
+                if (typeof Draft !== 'undefined') Draft.init(user);
+            }, 100);
         }, 50);
     },
 
