@@ -513,41 +513,79 @@ const Chat = {
         const user = window._currentUser;
         if (!user || !text.trim()) return;
 
-        // Busca nome real sempre antes de enviar
-        const teamName = await Chat.getMyTeamName();
+        // Usa nome já carregado ou busca do banco
+        let teamName = currentManagerName;
+        if (!teamName || teamName === 'Meu Time') {
+            try {
+                teamName = await Chat.getMyTeamName();
+            } catch(e) {
+                teamName = user.email?.split('@')[0] || 'Manager';
+            }
+        }
 
-        await window.supabaseClient.from('chat_messages').insert({
+        const { error } = await window.supabaseClient.from('chat_messages').insert({
             league_id: window._currentLeague?.id || null,
             manager_id: user.id,
             team_name: teamName,
             avatar_color: '#00f2fe',
             message: text.trim()
         });
+
+        if (error) console.warn('Chat send error:', error);
     },
 
     subscribe() {
-        // Remove subscription anterior se existir
         if (Chat.subscription) {
             window.supabaseClient.removeChannel(Chat.subscription);
             Chat.subscription = null;
         }
 
         Chat.subscription = window.supabaseClient
-            .channel('chat-live-' + Date.now()) // canal único evita conflitos
+            .channel('chat-live-' + Date.now())
             .on('postgres_changes', {
                 event: 'INSERT',
                 schema: 'public',
                 table: 'chat_messages'
             }, (payload) => {
-                chatMessages.push(Chat.formatMessage(payload.new));
-                renderChat();
+                // Evita duplicatas
+                const exists = chatMessages.some(m => m._id === payload.new.id);
+                if (!exists) {
+                    const msg = Chat.formatMessage(payload.new);
+                    msg._id = payload.new.id;
+                    chatMessages.push(msg);
+                    renderChat();
+                }
             })
             .subscribe((status) => {
+                console.log('Chat status:', status);
                 if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-                    // Reconecta após 3 segundos
                     setTimeout(() => Chat.subscribe(), 3000);
                 }
             });
+
+        // Polling de fallback: recarrega últimas msgs a cada 15s
+        if (Chat._pollInterval) clearInterval(Chat._pollInterval);
+        Chat._pollInterval = setInterval(async () => {
+            const lastId = chatMessages.length > 0
+                ? (chatMessages[chatMessages.length-1]._id || 0)
+                : 0;
+            if (!lastId) return;
+            const { data } = await window.supabaseClient
+                .from('chat_messages')
+                .select('*')
+                .gt('id', lastId)
+                .order('created_at', { ascending: true });
+            if (data?.length) {
+                data.forEach(m => {
+                    if (!chatMessages.some(cm => cm._id === m.id)) {
+                        const msg = Chat.formatMessage(m);
+                        msg._id = m.id;
+                        chatMessages.push(msg);
+                    }
+                });
+                renderChat();
+            }
+        }, 15000);
     }
 };
 
