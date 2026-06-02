@@ -1537,61 +1537,53 @@ const Matchup = {
         const user = window._currentUser;
         if (!user) return;
 
-        // Carrega managers se não tiver
         const { data: allManagers } = await window.supabaseClient
             .from('managers').select('id, team_name, total_points');
         if (!allManagers?.length) return;
 
         const BOT_PREFIX = '00000000-0000-0000-0000-';
         const managers = allManagers.filter(m => !m.id.startsWith(BOT_PREFIX));
-
-        if (!Matchup.schedule) {
-            Matchup.schedule = Matchup.generateSchedule(managers);
-        }
+        if (!Matchup.schedule) Matchup.schedule = Matchup.generateSchedule(managers);
 
         const round = Matchup.currentRound;
         document.getElementById('matchup-round-label').textContent = `Rodada ${round}`;
 
-        // Acha o confronto do usuário nessa rodada
-        const roundMatches = Matchup.schedule[round] || [];
-        const myMatch = roundMatches.find(m => m.home?.id === user.id || m.away?.id === user.id);
-
-        const myManager = managers.find(m => m.id === user.id);
-        const myName = currentManagerName || myManager?.team_name || 'Meu Time';
+        // Nome do meu time direto do banco
+        const myManager = allManagers.find(m => m.id === user.id);
+        const myName = myManager?.team_name || 'Meu Time';
         const myLetter = myName.charAt(0).toUpperCase();
 
-        let opponentName = '—';
-        let opponentLetter = '?';
+        // Adversário desta rodada — round-robin ou fallback
+        const roundMatches = Matchup.schedule[round] || [];
+        const myMatch = roundMatches.find(m => m.home?.id === user.id || m.away?.id === user.id);
+        const others = managers.filter(m => m.id !== user.id);
+        let opponentId = null, opponentName = '—', opponentLetter = '?';
 
         if (myMatch) {
             const opp = myMatch.home?.id === user.id ? myMatch.away : myMatch.home;
-            opponentName = opp?.team_name || 'Adversário';
-            opponentLetter = opponentName.charAt(0).toUpperCase();
+            opponentId = opp?.id; opponentName = opp?.team_name || '—'; opponentLetter = opponentName.charAt(0).toUpperCase();
+        } else if (others.length > 0) {
+            const opp = others[(round - 1) % others.length];
+            opponentId = opp?.id; opponentName = opp?.team_name || '—'; opponentLetter = opponentName.charAt(0).toUpperCase();
         }
 
-        // Calcula projeção do meu time
+        // Projeção do meu time
         let homeProj = 0;
         ['GOL','ZAG','LAT','MEI','ATA'].forEach(pos => {
             (lineup[pos] || []).forEach(p => { if (p) homeProj += (p.projPoints || 0); });
         });
 
-        // Projeção do adversário (picks do banco se existir)
+        // Projeção do adversário
         let awayProj = 0;
-        if (myMatch) {
-            const oppId = myMatch.home?.id === user.id ? myMatch.away?.id : myMatch.home?.id;
-            if (oppId) {
-                const { data: oppPicks } = await window.supabaseClient
-                    .from('draft_picks').select('player_id').eq('manager_id', oppId);
-                (oppPicks || []).forEach(pick => {
-                    const p = PLAYERS_DATABASE.find(x => x.id === pick.player_id);
-                    if (p) awayProj += (p.projPoints || 0);
-                });
-                // Usa só os 11 titulares estimados (top 11 por projeção)
-                awayProj = awayProj > 0 ? Math.round(awayProj / Math.max((oppPicks?.length || 18) / 11, 1) * 10) / 10 : 75;
+        if (opponentId) {
+            const { data: oppPicks } = await window.supabaseClient.from('draft_picks').select('player_id').eq('manager_id', opponentId);
+            if (oppPicks?.length) {
+                let total = 0;
+                oppPicks.forEach(pk => { const p = PLAYERS_DATABASE.find(x => x.id === pk.player_id); if (p) total += (p.projPoints || 0); });
+                awayProj = Math.round((total / oppPicks.length) * 11 * 10) / 10;
             }
         }
 
-        // Atualiza UI
         const q = id => document.getElementById(id);
         if (q('matchup-home-name')) q('matchup-home-name').textContent = myName;
         if (q('matchup-home-avatar')) q('matchup-home-avatar').textContent = myLetter;
@@ -1602,15 +1594,17 @@ const Matchup = {
         if (q('matchup-home-score')) q('matchup-home-score').textContent = '—';
         if (q('matchup-away-score')) q('matchup-away-score').textContent = '—';
 
-        const total = homeProj + awayProj || 100;
+        const total = (homeProj + awayProj) || 100;
         const pct = Math.round((homeProj / total) * 100);
         if (q('h2h-bar-home-width')) q('h2h-bar-home-width').style.width = `${pct}%`;
         if (q('h2h-bar-away-width')) q('h2h-bar-away-width').style.width = `${100-pct}%`;
         if (q('matchup-bar-home-label')) q('matchup-bar-home-label').textContent = `${myName}: ${homeProj.toFixed(1)} pts`;
         if (q('matchup-bar-away-label')) q('matchup-bar-away-label').textContent = `${opponentName}: ${awayProj.toFixed(1)} pts`;
-        if (q('matchup-win-prob-label')) q('matchup-win-prob-label').textContent = `Aproximação de Vitória: ${pct}% (${pct >= 50 ? myName : opponentName})`;
+        if (q('matchup-win-prob-label')) {
+            const leader = pct >= 50 ? myName : opponentName;
+            q('matchup-win-prob-label').textContent = `Aproximação de Vitória: ${Math.max(pct, 100-pct)}% (${leader})`;
+        }
 
-        // Comparativo posição a posição
         const listContainer = q('matchup-comparison-rows');
         if (listContainer) {
             listContainer.innerHTML = '';
@@ -1621,20 +1615,15 @@ const Matchup = {
             });
             slots.forEach(slot => {
                 const player = lineup[slot.pos]?.[slot.idx];
-                const row = document.createElement('div');
-                row.className = 'player-market-row';
-                row.style.cssText = 'grid-template-columns:1fr 2fr 1fr 2fr; padding:10px 20px;';
+                const el = document.createElement('div');
+                el.className = 'player-market-row';
+                el.style.cssText = 'grid-template-columns:1fr 2fr 1fr 2fr; padding:10px 20px;';
                 const hHtml = player ? `<strong>${player.name}</strong> <span style="font-size:11px;color:var(--text-muted);">(${player.projPoints}pts)</span>` : '<span style="color:var(--text-muted);">Não escalado</span>';
-                row.innerHTML = `
-                    <div style="font-weight:700;color:var(--text-secondary);font-size:11px;text-transform:uppercase;">${slot.name}</div>
-                    <div style="font-size:13px;color:var(--neon-blue);">${hHtml}</div>
-                    <div style="text-align:center;font-weight:800;color:var(--text-muted);">VS</div>
-                    <div style="font-size:13px;color:var(--neon-purple);text-align:right;"><span style="color:var(--text-muted);font-style:italic;">—</span></div>`;
-                listContainer.appendChild(row);
+                el.innerHTML = `<div style="font-weight:700;color:var(--text-secondary);font-size:11px;text-transform:uppercase;">${slot.name}</div><div style="font-size:13px;color:var(--neon-blue);">${hHtml}</div><div style="text-align:center;font-weight:800;color:var(--text-muted);">VS</div><div style="font-size:13px;color:var(--neon-purple);text-align:right;"><span style="color:var(--text-muted);font-style:italic;">—</span></div>`;
+                listContainer.appendChild(el);
             });
         }
     },
-
     prevRound() {
         if (Matchup.currentRound > 1) { Matchup.currentRound--; Matchup.render(); }
     },
@@ -1652,3 +1641,4 @@ window.draftPlayer = draftPlayer;
 window.buyPlayerFromMarket = buyPlayerFromMarket;
 window.sellPlayerFromMarket = sellPlayerFromMarket;
 window.Matchup = Matchup;
+window.changeFormation = changeFormation;
