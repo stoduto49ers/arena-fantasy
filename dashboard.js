@@ -16,13 +16,17 @@ const Dashboard = {
 
     async init(user) {
         Dashboard.state.currentUser = user;
-        await Dashboard.loadAll();
+        try {
+            await Dashboard.loadAll();
+        } catch(e) {
+            console.warn('Dashboard loadAll error:', e);
+        }
         Dashboard.render();
         Dashboard.subscribeRealtime();
     },
 
     async loadAll() {
-        await Promise.all([
+        await Promise.allSettled([
             Dashboard.loadManagers(),
             Dashboard.loadMyPicks(),
             Dashboard.loadNextMatchup(),
@@ -31,12 +35,17 @@ const Dashboard = {
     },
 
     async loadManagers() {
-        const { data } = await window.supabaseClient
-            .from('managers')
-            .select('*')
-            .order('total_points', { ascending: false });
-        Dashboard.state.managers = data || [];
-        Dashboard.state.myManager = data?.find(m => m.id === Dashboard.state.currentUser?.id);
+        try {
+            const { data, error } = await window.supabaseClient
+                .from('managers')
+                .select('*')
+                .order('total_points', { ascending: false });
+            if (error) throw error;
+            Dashboard.state.managers = data || [];
+            Dashboard.state.myManager = data?.find(m => m.id === Dashboard.state.currentUser?.id);
+        } catch(e) {
+            console.warn('loadManagers error:', e);
+        }
     },
 
     async loadMyPicks() {
@@ -106,7 +115,6 @@ const Dashboard = {
     renderMyTeamCard() {
         const me = Dashboard.state.myManager;
         const picks = Dashboard.state.myPicks;
-        if (!me) return;
 
         const nameEl = document.getElementById('dash-my-team-name');
         const recordEl = document.getElementById('dash-my-record');
@@ -114,12 +122,11 @@ const Dashboard = {
         const picksEl = document.getElementById('dash-my-picks');
         const posBreakEl = document.getElementById('dash-pos-breakdown');
 
-        if (nameEl) nameEl.textContent = me.team_name;
-        if (recordEl) recordEl.textContent = `${me.wins}V - ${me.losses}D`;
-        if (pointsEl) pointsEl.textContent = `${(me.total_points || 0).toFixed(2)} pts`;
+        if (nameEl) nameEl.textContent = me?.team_name || window.currentManagerName || 'Meu Time';
+        if (recordEl) recordEl.textContent = `${me?.wins||0}V - ${me?.losses||0}D`;
+        if (pointsEl) pointsEl.textContent = `${(me?.total_points||0).toFixed(2)} pts`;
         if (picksEl) picksEl.textContent = `${picks.length} jogadores`;
 
-        // Breakdown por posição
         if (posBreakEl) {
             const byPos = { GOL: 0, ZAG: 0, LAT: 0, MEI: 0, ATA: 0 };
             picks.forEach(p => { if (byPos[p.player_position] !== undefined) byPos[p.player_position]++; });
