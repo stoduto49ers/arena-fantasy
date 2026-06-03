@@ -907,14 +907,21 @@
                         <!-- 3. Formato da Liga -->
                         <div class="glass-panel commissioner-only">
                             <h3><i class="fa-solid fa-sitemap" style="color:var(--neon-purple);"></i> Formato da Liga</h3>
-                            <div class="cfg-form">
-                                <div class="cfg-field">
-                                    <label>Formato</label>
-                                    <select id="cfg-format">
-                                        <option value="groups">Grupos + Playoffs</option>
-                                        <option value="single_table">Liga Corrida</option>
-                                    </select>
-                                </div>
+                                <div class="cfg-form">
+                                    <div class="cfg-field">
+                                        <label>Formato</label>
+                                        <select id="cfg-format" onchange="
+                                            const isPontCorridos = this.value === 'single_table';
+                                            document.getElementById('cfg-group-count').disabled = isPontCorridos;
+                                            document.getElementById('cfg-playoff-weeks').disabled = isPontCorridos;
+                                            document.getElementById('cfg-shuffle-groups-btn').disabled = isPontCorridos;
+                                            document.getElementById('cfg-group-count').closest('.cfg-field').style.opacity = isPontCorridos ? '0.4' : '1';
+                                            document.getElementById('cfg-playoff-weeks').closest('.cfg-field').style.opacity = isPontCorridos ? '0.4' : '1';
+                                        ">
+                                            <option value="groups">Grupos + Playoffs</option>
+                                            <option value="single_table">Liga Corrida (Pontos Corridos)</option>
+                                        </select>
+                                    </div>
                                 <div class="cfg-field">
                                     <label>Número de Grupos</label>
                                     <select id="cfg-group-count">

@@ -1557,22 +1557,24 @@ const Matchup = {
             .from('managers').select('id, team_name, total_points');
         if (!allManagers?.length) return;
 
-        // Inclui TODOS os managers (reais + bots) no schedule
-        if (!Matchup.schedule) Matchup.schedule = Matchup.generateSchedule(allManagers);
-        const BOT_PREFIX = '00000000-0000-0000-0000-';
+        // Gera schedule uma vez e mantém (reseta se número de managers mudou)
+        if (!Matchup.schedule || Matchup._managerCount !== allManagers.length) {
+            Matchup.schedule = Matchup.generateSchedule(allManagers);
+            Matchup._managerCount = allManagers.length;
+        }
 
         const round = Matchup.currentRound;
         document.getElementById('matchup-round-label').textContent = `Rodada ${round}`;
 
-        // Nome do meu time direto do banco
+        // Meu time
         const myManager = allManagers.find(m => m.id === user.id);
         const myName = myManager?.team_name || 'Meu Time';
         const myLetter = myName.charAt(0).toUpperCase();
 
-        // Adversário desta rodada — round-robin ou fallback
+        // Adversário desta rodada
         const roundMatches = Matchup.schedule[round] || [];
         const myMatch = roundMatches.find(m => m.home?.id === user.id || m.away?.id === user.id);
-        const others = managers.filter(m => m.id !== user.id);
+        const others = allManagers.filter(m => m.id !== user.id); // corrigido: allManagers
         let opponentId = null, opponentName = '—', opponentLetter = '?';
 
         if (myMatch) {
