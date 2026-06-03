@@ -316,6 +316,13 @@ const LeagueConfig = {
         if (fmtEl) fmtEl.value = cfg.format || 'groups';
         if (playoffEl) playoffEl.value = cfg.playoff_weeks || 3;
         if (groupEl) groupEl.value = cfg.group_count || 4;
+
+        // Aplica bloqueio se pontos corridos
+        const isPontCorridos = (cfg.format === 'single_table');
+        if (groupEl) { groupEl.disabled = isPontCorridos; groupEl.closest('.cfg-field').style.opacity = isPontCorridos ? '0.4' : '1'; }
+        if (playoffEl) { playoffEl.disabled = isPontCorridos; playoffEl.closest('.cfg-field').style.opacity = isPontCorridos ? '0.4' : '1'; }
+        const shuffleBtn = document.getElementById('cfg-shuffle-groups-btn');
+        if (shuffleBtn) shuffleBtn.disabled = isPontCorridos;
     },
 
     renderGroups() {

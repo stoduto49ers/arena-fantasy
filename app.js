@@ -1517,33 +1517,32 @@ const Matchup = {
 
     // Gera calendário round-robin para todos os managers
     generateSchedule(managers) {
-        // Algoritmo round-robin com todos os managers (reais + bots)
-        const n = managers.length;
-        if (n < 2) return {};
+        // Round-robin simples: fixa o primeiro time, rotaciona os outros
+        const teams = [...managers];
+        if (teams.length % 2 !== 0) teams.push({ id: 'BYE', team_name: 'BYE' });
+        const n = teams.length;
+        const rounds = n - 1;
         const schedule = {};
-
-        // Se n ímpar, adiciona BYE
-        const teams = n % 2 === 0 ? [...managers] : [...managers, { id: 'BYE', team_name: 'BYE' }];
-        const t = teams.length;
-        const rounds = t - 1;
 
         for (let r = 0; r < rounds; r++) {
             schedule[r + 1] = [];
-            for (let i = 0; i < t / 2; i++) {
-                const home = teams[i];
-                const away = teams[t - 1 - i];
-                if (home.id !== 'BYE' && away.id !== 'BYE') {
-                    schedule[r + 1].push({ home, away });
+            // Par 0 vs n-1, 1 vs n-2, etc
+            for (let i = 0; i < n / 2; i++) {
+                const a = teams[i];
+                const b = teams[n - 1 - i];
+                if (a.id !== 'BYE' && b.id !== 'BYE') {
+                    schedule[r + 1].push({ home: a, away: b });
                 }
             }
-            // Rotaciona (mantém teams[0] fixo)
-            teams.splice(1, 0, teams.pop());
+            // Rotaciona todos exceto teams[0]
+            const last = teams.pop();
+            teams.splice(1, 0, last);
         }
 
-        // Repete para completar 38 rodadas (2º turno inverte mandos)
+        // 2º turno: inverte mandos (rodadas rounds+1 até 38)
         for (let r = rounds + 1; r <= 38; r++) {
-            const baseRound = schedule[((r - rounds - 1) % rounds) + 1] || [];
-            schedule[r] = baseRound.map(m => ({ home: m.away, away: m.home }));
+            const base = schedule[((r - rounds - 1) % rounds) + 1] || [];
+            schedule[r] = base.map(m => ({ home: m.away, away: m.home }));
         }
 
         return schedule;
