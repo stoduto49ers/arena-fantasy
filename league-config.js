@@ -351,7 +351,26 @@ const LeagueConfig = {
             if (el) scoring[k] = parseFloat(el.value) || 0;
         });
         await LeagueConfig.saveConfig({ scoring });
+
+        // Alerta no chat
+        await LeagueConfig.postSystemMessage(
+            `⚙️ O comissário atualizou o sistema de pontuação da liga. As projeções foram recalculadas.`
+        );
+
         LeagueConfig.showToast('Pontuação salva!', 'success');
+    },
+
+    // Posta mensagem do sistema no chat
+    async postSystemMessage(msg) {
+        const user = window._currentUser;
+        if (!user || !window.supabaseClient) return;
+        await window.supabaseClient.from('chat_messages').insert({
+            league_id: window._currentLeague?.id || null,
+            manager_id: user.id,
+            team_name: '⚙️ Sistema',
+            avatar_color: '#a855f7',
+            message: msg
+        });
     },
 
     // --- Salva info da liga ---
@@ -388,6 +407,18 @@ const LeagueConfig = {
         const playoffWeeks = parseInt(document.getElementById('cfg-playoff-weeks')?.value);
         const groupCount = parseInt(document.getElementById('cfg-group-count')?.value);
         await LeagueConfig.saveConfig({ format, playoff_weeks: playoffWeeks, group_count: groupCount });
+
+        const formatNames = {
+            'pontos_corridos': 'Pontos Corridos (liga única)',
+            'grupos_playoffs': 'Grupos + Playoffs',
+            '2grupos': '2 Grupos de 8',
+            '4grupos': '4 Grupos de 4',
+        };
+        const desc = formatNames[format] || format || 'novo formato';
+        await LeagueConfig.postSystemMessage(
+            `🏆 O comissário alterou o formato da liga para: ${desc}. Confrontos atualizados.`
+        );
+
         LeagueConfig.showToast('Formato salvo!', 'success');
     },
 

@@ -1517,23 +1517,35 @@ const Matchup = {
 
     // Gera calendário round-robin para todos os managers
     generateSchedule(managers) {
-        const schedule = {};
+        // Algoritmo round-robin com todos os managers (reais + bots)
         const n = managers.length;
-        // Round robin: cada manager joga contra todos os outros
-        for (let round = 1; round <= Math.max(n - 1, 1); round++) {
-            schedule[round] = [];
-            for (let i = 0; i < Math.floor(n / 2); i++) {
-                const home = managers[i % n];
-                const away = managers[(n - 1 - i + round) % n];
-                if (home && away && home.id !== away.id) {
-                    schedule[round].push({ home, away });
+        if (n < 2) return {};
+        const schedule = {};
+
+        // Se n ímpar, adiciona BYE
+        const teams = n % 2 === 0 ? [...managers] : [...managers, { id: 'BYE', team_name: 'BYE' }];
+        const t = teams.length;
+        const rounds = t - 1;
+
+        for (let r = 0; r < rounds; r++) {
+            schedule[r + 1] = [];
+            for (let i = 0; i < t / 2; i++) {
+                const home = teams[i];
+                const away = teams[t - 1 - i];
+                if (home.id !== 'BYE' && away.id !== 'BYE') {
+                    schedule[r + 1].push({ home, away });
                 }
             }
+            // Rotaciona (mantém teams[0] fixo)
+            teams.splice(1, 0, teams.pop());
         }
-        // Repete para completar 38 rodadas
-        for (let round = n; round <= 38; round++) {
-            schedule[round] = schedule[((round - 1) % (n - 1)) + 1] || [];
+
+        // Repete para completar 38 rodadas (2º turno inverte mandos)
+        for (let r = rounds + 1; r <= 38; r++) {
+            const baseRound = schedule[((r - rounds - 1) % rounds) + 1] || [];
+            schedule[r] = baseRound.map(m => ({ home: m.away, away: m.home }));
         }
+
         return schedule;
     },
 
@@ -1545,9 +1557,9 @@ const Matchup = {
             .from('managers').select('id, team_name, total_points');
         if (!allManagers?.length) return;
 
+        // Inclui TODOS os managers (reais + bots) no schedule
+        if (!Matchup.schedule) Matchup.schedule = Matchup.generateSchedule(allManagers);
         const BOT_PREFIX = '00000000-0000-0000-0000-';
-        const managers = allManagers.filter(m => !m.id.startsWith(BOT_PREFIX));
-        if (!Matchup.schedule) Matchup.schedule = Matchup.generateSchedule(managers);
 
         const round = Matchup.currentRound;
         document.getElementById('matchup-round-label').textContent = `Rodada ${round}`;
@@ -1609,7 +1621,25 @@ const Matchup = {
             q('matchup-win-prob-label').textContent = `Aproximação de Vitória: ${Math.max(pct, 100-pct)}% (${leader})`;
         }
 
-        const listContainer = q('matchup-comparison-rows');
+        // Carrega picks do adversário para o comparativo
+        let oppPlayerMap = {}; // pos -> [player, ...]
+        if (opponentId && !opponentId.startsWith('BYE')) {
+            const { data: oppPicks } = await window.supabaseClient
+                .from('draft_picks').select('*').eq('manager_id', opponentId);
+            if (oppPicks?.length) {
+                oppPicks.forEach(pk => {
+                    const p = PLAYERS_DATABASE.find(x => x.id === pk.player_id);
+                    if (p) {
+                        if (!oppPlayerMap[p.position]) oppPlayerMap[p.position] = [];
+                        oppPlayerMap[p.position].push(p);
+                    }
+                });
+                // Ordena por projeção desc
+                Object.keys(oppPlayerMap).forEach(pos => {
+                    oppPlayerMap[pos].sort((a,b) => b.projPoints - a.projPoints);
+                });
+            }
+        }
         if (listContainer) {
             listContainer.innerHTML = '';
             const slots = [];
@@ -1623,7 +1653,10 @@ const Matchup = {
                 el.className = 'player-market-row';
                 el.style.cssText = 'grid-template-columns:1fr 2fr 1fr 2fr; padding:10px 20px;';
                 const hHtml = player ? `<strong>${player.name}</strong> <span style="font-size:11px;color:var(--text-muted);">(${player.projPoints}pts)</span>` : '<span style="color:var(--text-muted);">Não escalado</span>';
-                el.innerHTML = `<div style="font-weight:700;color:var(--text-secondary);font-size:11px;text-transform:uppercase;">${slot.name}</div><div style="font-size:13px;color:var(--neon-blue);">${hHtml}</div><div style="text-align:center;font-weight:800;color:var(--text-muted);">VS</div><div style="font-size:13px;color:var(--neon-purple);text-align:right;"><span style="color:var(--text-muted);font-style:italic;">—</span></div>`;
+                const oppIdx = slot.idx || 0;
+                const oppPlayer = (oppPlayerMap[slot.pos] || [])[oppIdx];
+                const aHtml = oppPlayer ? `<strong>${oppPlayer.name}</strong> <span style="font-size:11px;color:var(--text-muted);">(${oppPlayer.projPoints}pts)</span>` : '<span style="color:var(--text-muted);">—</span>';
+                el.innerHTML = `<div style="font-weight:700;color:var(--text-secondary);font-size:11px;text-transform:uppercase;">${slot.name}</div><div style="font-size:13px;color:var(--neon-blue);">${hHtml}</div><div style="text-align:center;font-weight:800;color:var(--text-muted);">VS</div><div style="font-size:13px;color:var(--neon-purple);text-align:right;">${aHtml}</div>`;
                 listContainer.appendChild(el);
             });
         }
