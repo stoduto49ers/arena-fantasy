@@ -125,37 +125,28 @@ const Waiver = {
             .order('bid_amount', { ascending: false });
 
         const bids = pendingBids.data || [];
-        const processed = new Set(); // player_ids já processados
+        const processed = new Set();
+        const transactions = []; // para o resumo do chat
 
         for (const bid of bids) {
             if (processed.has(bid.player_id)) {
-                // Jogador já foi para outro time — marca como perdido
                 await window.supabaseClient
-                    .from('waiver_bids')
-                    .update({ status: 'lost' })
-                    .eq('id', bid.id);
+                    .from('waiver_bids').update({ status: 'lost' }).eq('id', bid.id);
                 continue;
             }
 
-            // Verifica se manager ainda tem saldo
             const { data: mgr } = await window.supabaseClient
-                .from('managers')
-                .select('budget')
-                .eq('id', bid.manager_id)
-                .single();
+                .from('managers').select('budget, team_name').eq('id', bid.manager_id).single();
 
             if (!mgr || mgr.budget < bid.bid_amount) {
                 await window.supabaseClient
-                    .from('waiver_bids')
-                    .update({ status: 'lost', result_note: 'Saldo insuficiente' })
-                    .eq('id', bid.id);
+                    .from('waiver_bids').update({ status: 'lost', result_note: 'Saldo insuficiente' }).eq('id', bid.id);
                 continue;
             }
 
-            // Lance vencedor — adiciona ao roster e desconta saldo
+            // Lance vencedor
             await window.supabaseClient.from('draft_picks').insert({
-                round: 0, // waiver = rodada 0
-                pick_number: 9999,
+                round: 0, pick_number: 9999,
                 manager_id: bid.manager_id,
                 player_id: bid.player_id,
                 player_name: bid.player_name,
@@ -164,16 +155,43 @@ const Waiver = {
             });
 
             await window.supabaseClient
-                .from('managers')
-                .update({ budget: mgr.budget - bid.bid_amount })
-                .eq('id', bid.manager_id);
+                .from('managers').update({ budget: mgr.budget - bid.bid_amount }).eq('id', bid.manager_id);
 
             await window.supabaseClient
-                .from('waiver_bids')
-                .update({ status: 'won' })
-                .eq('id', bid.id);
+                .from('waiver_bids').update({ status: 'won' }).eq('id', bid.id);
 
             processed.add(bid.player_id);
+
+            // Registra transação para o resumo
+            transactions.push({
+                team: mgr.team_name || bid.manager_id,
+                player: bid.player_name,
+                pos: bid.player_position,
+                value: bid.bid_amount
+            });
+        }
+
+        // Posta resumo no chat se houve transações
+        if (transactions.length > 0 && window._currentUser) {
+            const lines = transactions.map(t =>
+                `• ${t.team} contratou ${t.player} (${t.pos}) por D$${t.value}`
+            ).join('\n');
+
+            await window.supabaseClient.from('chat_messages').insert({
+                league_id: window._currentLeague?.id || null,
+                manager_id: window._currentUser.id,
+                team_name: '🔨 Resumo do Mercado',
+                avatar_color: '#ff9f43',
+                message: `Waiver de hoje processado!\n${lines}`
+            });
+        } else if (transactions.length === 0 && window._currentUser) {
+            await window.supabaseClient.from('chat_messages').insert({
+                league_id: window._currentLeague?.id || null,
+                manager_id: window._currentUser.id,
+                team_name: '🔨 Resumo do Mercado',
+                avatar_color: '#ff9f43',
+                message: 'Waiver processado: nenhuma transação realizada hoje.'
+            });
         }
 
         Waiver.showToast('Waiver processado!', 'success');
