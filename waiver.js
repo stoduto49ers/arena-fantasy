@@ -308,7 +308,8 @@ const Waiver = {
         return next;
     },
 
-    // Checa se existe bids pendentes com process_at já passado — processa se sim
+    // Checa se existe bids pendentes com process_at já passado
+    // ATENÇÃO: só processa se o usuário for comissário, para evitar processamento acidental
     async checkMissedProcessing() {
         const now = new Date().toISOString();
         const { data: overdue } = await window.supabaseClient
@@ -319,8 +320,17 @@ const Waiver = {
             .limit(1);
 
         if (overdue?.length > 0) {
-            console.log('Waiver: encontradas bids atrasadas, processando...');
-            await Waiver.processWaiver();
+            console.log('Waiver: bids atrasadas encontradas.');
+            // Só processa automaticamente se for o comissário
+            // Para outros managers, apenas mostra aviso discreto
+            const isComm = window._currentLeague?.commissioner_id === Waiver.state.currentUser?.id
+                || Draft.state.managers?.[0]?.id === Waiver.state.currentUser?.id;
+            if (isComm) {
+                console.log('Waiver: processando como comissário...');
+                await Waiver.processWaiver();
+            } else {
+                console.log('Waiver: aguardando comissário processar o waiver atrasado.');
+            }
         }
     },
 
@@ -331,11 +341,13 @@ const Waiver = {
         const badge = document.getElementById('waiver-countdown-badge');
         if (!el) return;
 
-        // Checa imediatamente se há bids atrasadas
-        Waiver.checkMissedProcessing();
+        // NÃO checa imediatamente ao abrir — evita processamento acidental
+        // Checa apenas após 5s para dar tempo da aba carregar completamente
+        setTimeout(() => Waiver.checkMissedProcessing(), 5000);
 
         Waiver.state.timerInterval = setInterval(() => {
-            const diff = Waiver.nextProcessingTime() - new Date();
+            const next = Waiver.nextProcessingTime();
+            const diff = next - new Date();
             const h = Math.floor(diff / 3600000);
             const m = Math.floor((diff % 3600000) / 60000);
             const s = Math.floor((diff % 60000) / 1000);
@@ -343,8 +355,9 @@ const Waiver = {
             if (el) el.textContent = str;
             if (badge) badge.textContent = str;
 
-            // Quando chegar às 8h, processa
-            if (h === 0 && m === 0 && s === 0) {
+            // Quando bater exatamente às 8h, processa
+            // Usa uma janela de 2s para evitar miss por latência
+            if (h === 0 && m === 0 && s <= 1) {
                 Waiver.processWaiver();
             }
         }, 1000);

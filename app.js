@@ -602,13 +602,20 @@ const Chat = {
     },
 
     subscribe() {
+        // Remove canal anterior se existir (mesmo nome fixo)
         if (Chat.subscription) {
-            window.supabaseClient.removeChannel(Chat.subscription);
+            try { window.supabaseClient.removeChannel(Chat.subscription); } catch(e) {}
             Chat.subscription = null;
         }
+        // Cancela reconnect pendente
+        if (Chat._reconnectTimeout) {
+            clearTimeout(Chat._reconnectTimeout);
+            Chat._reconnectTimeout = null;
+        }
 
+        // Canal com nome FIXO — evita canais zumbis no Supabase
         Chat.subscription = window.supabaseClient
-            .channel('chat-live-' + Date.now())
+            .channel('chat-live')
             .on('postgres_changes', {
                 event: 'INSERT',
                 schema: 'public',
@@ -625,8 +632,14 @@ const Chat = {
             })
             .subscribe((status) => {
                 console.log('Chat status:', status);
-                if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-                    setTimeout(() => Chat.subscribe(), 3000);
+                // CLOSED pode ser normal (troca de aba, etc.) — só reconecta em erro real
+                // Usa backoff exponencial: 5s → 10s → 20s (max) para evitar loop
+                if (status === 'CHANNEL_ERROR') {
+                    const delay = Math.min((Chat._reconnectDelay || 5000) * 2, 20000);
+                    Chat._reconnectDelay = delay;
+                    Chat._reconnectTimeout = setTimeout(() => Chat.subscribe(), delay);
+                } else if (status === 'SUBSCRIBED') {
+                    Chat._reconnectDelay = 5000; // reseta backoff ao conectar com sucesso
                 }
             });
 
@@ -1565,23 +1578,28 @@ const Matchup = {
         const round = Matchup.currentRound;
         document.getElementById('matchup-round-label').textContent = `Rodada ${round}`;
 
-        // Meu time
+        // Meu time — usa nome do banco; fallback para currentManagerName (carregado no initApp)
         const myManager = allManagers.find(m => m.id === user.id);
-        const myName = myManager?.team_name || 'Meu Time';
+        const myName = myManager?.team_name || currentManagerName || 'Meu Time';
         const myLetter = myName.charAt(0).toUpperCase();
 
         // Adversário desta rodada
         const roundMatches = Matchup.schedule[round] || [];
         const myMatch = roundMatches.find(m => m.home?.id === user.id || m.away?.id === user.id);
-        const others = allManagers.filter(m => m.id !== user.id); // corrigido: allManagers
+        const others = allManagers.filter(m => m.id !== user.id);
         let opponentId = null, opponentName = '—', opponentLetter = '?';
 
         if (myMatch) {
             const opp = myMatch.home?.id === user.id ? myMatch.away : myMatch.home;
-            opponentId = opp?.id; opponentName = opp?.team_name || '—'; opponentLetter = opponentName.charAt(0).toUpperCase();
+            opponentId = opp?.id;
+            opponentName = opp?.team_name || '—';
+            opponentLetter = opponentName.charAt(0).toUpperCase();
         } else if (others.length > 0) {
+            // Fallback round-robin simples apenas se schedule não encontrou
             const opp = others[(round - 1) % others.length];
-            opponentId = opp?.id; opponentName = opp?.team_name || '—'; opponentLetter = opponentName.charAt(0).toUpperCase();
+            opponentId = opp?.id;
+            opponentName = opp?.team_name || '—';
+            opponentLetter = opponentName.charAt(0).toUpperCase();
         }
 
         // Projeção do meu time
