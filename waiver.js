@@ -103,6 +103,93 @@ const Waiver = {
         Waiver.showToast(`Lance de D$${bidAmount} registrado para ${player.name}!`, 'success');
     },
 
+    // Abre modal para escolher jogador a dropar
+    async openDropModal(player) {
+        const bidEl = document.getElementById(`bid-input-${player.id}`);
+        const bidAmount = parseInt(bidEl?.value || 0);
+        if (bidAmount < 1) { Waiver.showToast('Digite o valor do lance primeiro.', 'error'); return; }
+        if (bidAmount > Waiver.state.managerBudget) { Waiver.showToast('Saldo insuficiente!', 'error'); return; }
+
+        // Carrega meus jogadores do banco
+        const { data: myPicks } = await window.supabaseClient
+            .from('draft_picks').select('*').eq('manager_id', Waiver.state.currentUser.id);
+
+        const playerList = (myPicks || []).map(pk => {
+            const p = PLAYERS_DATABASE.find(x => x.id === pk.player_id);
+            return p ? { ...p, pickId: pk.id } : null;
+        }).filter(Boolean).sort((a,b) => a.position.localeCompare(b.position));
+
+        // Cria modal
+        let modal = document.getElementById('waiver-drop-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'waiver-drop-modal';
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;';
+            document.body.appendChild(modal);
+        }
+
+        modal.innerHTML = `
+            <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--border-radius-md);padding:24px;max-width:480px;width:100%;max-height:80vh;overflow-y:auto;">
+                <h3 style="margin-bottom:4px;"><i class="fa-solid fa-gavel" style="color:var(--neon-orange);"></i> Confirmar Lance</h3>
+                <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+                    Você vai dar <strong style="color:var(--neon-green);">D$${bidAmount}</strong> por 
+                    <strong>${player.name}</strong> (${player.position}). 
+                    Escolha qual jogador soltar do seu elenco:
+                </p>
+                <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;">
+                    ${playerList.map(p => `
+                        <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--border-color);border-radius:8px;cursor:pointer;background:rgba(255,255,255,0.02);" 
+                               onmouseover="this.style.borderColor='var(--neon-blue)'" onmouseout="this.style.borderColor='var(--border-color)'">
+                            <input type="radio" name="drop-player" value="${p.id}" style="accent-color:var(--neon-blue);">
+                            <span class="player-pos-badge pos-${p.position.toLowerCase()}">${p.position}</span>
+                            <span style="font-size:13px;font-weight:600;">${p.name}</span>
+                            <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">${p.club}</span>
+                        </label>`).join('')}
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <button class="action-btn primary" style="flex:1;" onclick="Waiver.confirmBidWithDrop(${JSON.stringify(player).replace(/"/g,'&quot;')}, ${bidAmount})">
+                        <i class="fa-solid fa-check"></i> Confirmar Lance
+                    </button>
+                    <button class="action-btn" onclick="document.getElementById('waiver-drop-modal').style.display='none'">
+                        Cancelar
+                    </button>
+                </div>
+            </div>`;
+        modal.style.display = 'flex';
+    },
+
+    async confirmBidWithDrop(player, bidAmount) {
+        const selected = document.querySelector('input[name="drop-player"]:checked');
+        if (!selected) { Waiver.showToast('Selecione um jogador para soltar.', 'error'); return; }
+
+        const dropPlayerId = parseInt(selected.value);
+        document.getElementById('waiver-drop-modal').style.display = 'none';
+
+        // Insere bid com o drop
+        await window.supabaseClient.from('waiver_bids').delete()
+            .eq('manager_id', Waiver.state.currentUser.id)
+            .eq('player_id', player.id).eq('status', 'pending');
+
+        const { error } = await window.supabaseClient.from('waiver_bids').insert({
+            manager_id: Waiver.state.currentUser.id,
+            player_id: player.id,
+            player_name: player.name,
+            player_position: player.position,
+            player_club: player.club,
+            drop_player_id: dropPlayerId,
+            bid_amount: bidAmount,
+            status: 'pending',
+            process_at: Waiver.nextProcessingTime().toISOString()
+        });
+
+        if (error) { Waiver.showToast('Erro ao registrar lance.', 'error'); return; }
+
+        await Waiver.loadBids();
+        Waiver.renderMyBids();
+        Waiver.renderWaiverPlayers();
+        Waiver.showToast(`Lance de D$${bidAmount} registrado! ${player.name} entrará e jogador selecionado sairá.`, 'success');
+    },
+
     // Cancela um lance
     async cancelBid(bidId) {
         await window.supabaseClient
@@ -144,7 +231,7 @@ const Waiver = {
                 continue;
             }
 
-            // Lance vencedor
+            // Lance vencedor — adiciona ao roster
             await window.supabaseClient.from('draft_picks').insert({
                 round: 0, pick_number: 9999,
                 manager_id: bid.manager_id,
@@ -153,6 +240,14 @@ const Waiver = {
                 player_position: bid.player_position,
                 player_club: bid.player_club,
             });
+
+            // Remove o jogador dropado do roster
+            if (bid.drop_player_id) {
+                await window.supabaseClient.from('draft_picks')
+                    .delete()
+                    .eq('manager_id', bid.manager_id)
+                    .eq('player_id', bid.drop_player_id);
+            }
 
             await window.supabaseClient
                 .from('managers').update({ budget: mgr.budget - bid.bid_amount }).eq('id', bid.manager_id);
@@ -167,15 +262,19 @@ const Waiver = {
                 team: mgr.team_name || bid.manager_id,
                 player: bid.player_name,
                 pos: bid.player_position,
-                value: bid.bid_amount
+                value: bid.bid_amount,
+                dropped: bid.drop_player_id
+                    ? PLAYERS_DATABASE.find(p => p.id === bid.drop_player_id)?.name || `#${bid.drop_player_id}`
+                    : null
             });
         }
 
         // Posta resumo no chat se houve transações
         if (transactions.length > 0 && window._currentUser) {
-            const lines = transactions.map(t =>
-                `• ${t.team} contratou ${t.player} (${t.pos}) por D$${t.value}`
-            ).join('\n');
+            const lines = transactions.map(t => {
+                const dropStr = t.dropped ? ` | -${t.dropped}` : '';
+                return `• ${t.team}: +${t.player} (${t.pos}) D$${t.value}${dropStr}`;
+            }).join('\n');
 
             await window.supabaseClient.from('chat_messages').insert({
                 league_id: window._currentLeague?.id || null,
@@ -209,12 +308,31 @@ const Waiver = {
         return next;
     },
 
+    // Checa se existe bids pendentes com process_at já passado — processa se sim
+    async checkMissedProcessing() {
+        const now = new Date().toISOString();
+        const { data: overdue } = await window.supabaseClient
+            .from('waiver_bids')
+            .select('id')
+            .eq('status', 'pending')
+            .lte('process_at', now)
+            .limit(1);
+
+        if (overdue?.length > 0) {
+            console.log('Waiver: encontradas bids atrasadas, processando...');
+            await Waiver.processWaiver();
+        }
+    },
+
     // Countdown até o próximo processamento
     startCountdown() {
         clearInterval(Waiver.state.timerInterval);
         const el = document.getElementById('waiver-timer-display');
         const badge = document.getElementById('waiver-countdown-badge');
         if (!el) return;
+
+        // Checa imediatamente se há bids atrasadas
+        Waiver.checkMissedProcessing();
 
         Waiver.state.timerInterval = setInterval(() => {
             const diff = Waiver.nextProcessingTime() - new Date();
@@ -298,7 +416,7 @@ const Waiver = {
                         : `<input type="number" id="bid-input-${p.id}" min="1" max="${Waiver.state.managerBudget}"
                                placeholder="D$" style="width:64px; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); border-radius:6px; color:var(--text-primary); font-family:var(--font-primary); font-size:13px; padding:5px 8px; text-align:center;">
                            <button class="action-btn primary" style="padding:6px 12px; font-size:12px;"
-                               onclick="Waiver.placeBid({id:${p.id}, name:'${p.name.replace(/'/g,"\\'")}', position:'${p.position}', club:'${p.club}', projPoints:${p.projPoints}})">
+                               onclick="Waiver.openDropModal({id:${p.id}, name:'${p.name.replace(/'/g,"\\'")}', position:'${p.position}', club:'${p.club}', projPoints:${p.projPoints}})">
                                <i class="fa-solid fa-gavel"></i> Dar Lance
                            </button>`
                     }
