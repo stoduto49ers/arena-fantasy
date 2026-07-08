@@ -33,8 +33,33 @@ const Draft = {
         Draft.showLoading(false);
     },
 
-    // --- Carrega managers na ordem do draft ---
+    // Helper: id da liga ativa
+    leagueId() { return window.currentLeagueId?.() || window._currentLeague?.id || null; },
+
+    // --- Carrega managers na ordem do draft (SÓ membros aprovados da liga) ---
     async loadManagers() {
+        const lid = Draft.leagueId();
+
+        if (lid) {
+            const { data: members } = await window.supabaseClient
+                .from('league_members')
+                .select('manager_id')
+                .eq('league_id', lid)
+                .eq('status', 'approved');
+
+            const ids = (members || []).map(m => m.manager_id);
+            if (ids.length) {
+                const { data } = await window.supabaseClient
+                    .from('managers')
+                    .select('*')
+                    .in('id', ids)
+                    .order('created_at', { ascending: true });
+                Draft.state.managers = data || [];
+                return;
+            }
+        }
+
+        // Fallback: todos (compatibilidade)
         const { data } = await window.supabaseClient
             .from('managers')
             .select('*')
@@ -42,17 +67,29 @@ const Draft = {
         Draft.state.managers = data || [];
     },
 
-    // --- Carrega todas as picks já feitas ---
+    // --- Carrega todas as picks já feitas (da liga) ---
     async loadPicks() {
-        const { data } = await window.supabaseClient
+        const lid = Draft.leagueId();
+        let q = window.supabaseClient
             .from('draft_picks')
             .select('*')
             .order('pick_number', { ascending: true });
+        if (lid) q = q.eq('league_id', lid);
+        const { data } = await q;
         Draft.state.picks = data || [];
     },
 
-    // --- Carrega o estado atual do draft ---
+    // --- Carrega o estado atual do draft (da liga, fallback id=1) ---
     async loadDraftState() {
+        const lid = Draft.leagueId();
+        if (lid) {
+            const { data } = await window.supabaseClient
+                .from('draft_state')
+                .select('*')
+                .eq('league_id', lid)
+                .limit(1);
+            if (data?.length) { Draft.state.draftState = data[0]; return; }
+        }
         const { data } = await window.supabaseClient
             .from('draft_state')
             .select('*')
@@ -60,6 +97,9 @@ const Draft = {
             .single();
         Draft.state.draftState = data;
     },
+
+    // ID da linha de draft_state carregada (para updates)
+    stateRowId() { return Draft.state.draftState?.id ?? 1; },
 
     // --- Calcula de quem é a vez (snake draft) ---
     getPickOrder() {
@@ -116,6 +156,7 @@ const Draft = {
         const { error } = await window.supabaseClient
             .from('draft_picks')
             .insert({
+                league_id: Draft.leagueId(),
                 round: slot.round,
                 pick_number: slot.pickNumber,
                 manager_id: Draft.state.currentUser.id,
@@ -141,12 +182,12 @@ const Draft = {
                 timer_expires_at: isFinished ? null : expiresAt,
                 updated_at: new Date().toISOString()
             })
-            .eq('id', 1);
+            .eq('id', Draft.stateRowId());
 
         // Aviso no chat quando draft encerra
         if (isFinished && window._currentUser) {
             await window.supabaseClient.from('chat_messages').insert({
-                league_id: window._currentLeague?.id || null,
+                league_id: Draft.leagueId(),
                 manager_id: window._currentUser.id,
                 team_name: '🏆 Sistema',
                 avatar_color: '#ffd700',
@@ -612,14 +653,14 @@ const Draft = {
         // Salva a ordem no banco
         await window.supabaseClient.from('draft_state')
             .update({ pick_order: JSON.stringify(shuffled.map(m => m.id)) })
-            .eq('id', 1);
+            .eq('id', Draft.stateRowId());
 
         // Posta no chat
         const orderText = shuffled.map((m, i) => `${i+1}º ${m.team_name}`).join(' → ');
         const msg = `🎲 Ordem do Draft sorteada!\n${shuffled.map((m,i) => `${i+1}. ${m.team_name}`).join('\n')}`;
         if (typeof Chat !== 'undefined') {
             await window.supabaseClient.from('chat_messages').insert({
-                league_id: window._currentLeague?.id || null,
+                league_id: Draft.leagueId(),
                 manager_id: Draft.state.currentUser.id,
                 team_name: '🏆 Sistema',
                 avatar_color: '#ffd700',
@@ -655,6 +696,7 @@ const Draft = {
         const timerHours = Draft.state.timerHours || 8;
 
         const { error } = await window.supabaseClient.from('draft_picks').insert({
+            league_id: Draft.leagueId(),
             round: slot.round,
             pick_number: slot.pickNumber,
             manager_id: botId,
@@ -675,7 +717,7 @@ const Draft = {
             is_finished: isFinished,
             timer_expires_at: isFinished ? null : expiresAt,
             updated_at: new Date().toISOString()
-        }).eq('id', 1);
+        }).eq('id', Draft.stateRowId());
 
         return true;
     },
@@ -765,17 +807,11 @@ const Draft = {
         Draft.showLoading(true);
 
         try {
-            // 1. Apaga TODAS as picks (usando neq em campo que sempre existe)
-            await window.supabaseClient
-                .from('draft_picks')
-                .delete()
-                .gte('pick_number', 0);
-
-            // Fallback: tenta também com neq em created_at
-            await window.supabaseClient
-                .from('draft_picks')
-                .delete()
-                .neq('player_name', 'IMPOSSIVEL_NOME_QUE_NAO_EXISTE');
+            // 1. Apaga as picks DA LIGA
+            const lid = Draft.leagueId();
+            let delQ = window.supabaseClient.from('draft_picks').delete();
+            delQ = lid ? delQ.eq('league_id', lid) : delQ.gte('pick_number', 0);
+            await delQ;
 
             // 2. Reseta o estado completamente
             await window.supabaseClient.from('draft_state').update({
@@ -784,7 +820,7 @@ const Draft = {
                 draft_status: 'pending',
                 timer_expires_at: null,
                 updated_at: new Date().toISOString()
-            }).eq('id', 1);
+            }).eq('id', Draft.stateRowId());
 
             // 3. Recarrega tudo
             await Draft.loadDraftState();
@@ -796,7 +832,7 @@ const Draft = {
             // Avisa no chat
             if (window._currentUser && window.supabaseClient) {
                 await window.supabaseClient.from('chat_messages').insert({
-                    league_id: window._currentLeague?.id || null,
+                    league_id: Draft.leagueId(),
                     manager_id: window._currentUser.id,
                     team_name: '⚙️ Sistema',
                     avatar_color: '#ff4757',
@@ -824,7 +860,7 @@ const Draft = {
                 timer_expires_at: expiresAt,
                 updated_at: new Date().toISOString()
             })
-            .eq('id', 1);
+            .eq('id', Draft.stateRowId());
         await Draft.loadDraftState();
         Draft.render();
     }

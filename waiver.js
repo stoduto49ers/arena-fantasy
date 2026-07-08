@@ -1,14 +1,16 @@
 // =============================================
-// ARENA FANTASY - Waiver por Leilão
-// Processamento diário às 08:00
-// Maior lance leva, desconta do saldo do time
+// ARENA FANTASY - Waiver por Leilão (v2)
+// - Processamento OFICIAL: Vercel Cron às 08:00 (api/process-waiver.js)
+// - O cliente NUNCA processa automaticamente (só exibe countdown)
+// - Comissário tem botão de processamento manual como fallback
+// - Lances gravados com league_id
 // =============================================
 
 const Waiver = {
 
     state: {
-        bids: [],          // todos os lances pendentes
-        myBids: [],        // lances do usuário logado
+        bids: [],
+        myBids: [],
         currentUser: null,
         managerBudget: 1000,
         timerInterval: null,
@@ -25,82 +27,47 @@ const Waiver = {
         Waiver.subscribeRealtime();
     },
 
-    // Carrega o saldo atual do manager
+    leagueId() { return window.currentLeagueId?.() || window._currentLeague?.id || null; },
+
+    isCommissioner() {
+        const uid = Waiver.state.currentUser?.id;
+        return uid && (
+            window._currentLeague?.commissioner_id === uid
+            || (typeof Draft !== 'undefined' && Draft.isCommissioner?.())
+        );
+    },
+
     async loadBudget() {
         const { data } = await window.supabaseClient
-            .from('managers')
-            .select('budget')
-            .eq('id', Waiver.state.currentUser.id)
-            .single();
+            .from('managers').select('budget')
+            .eq('id', Waiver.state.currentUser.id).single();
         Waiver.state.managerBudget = data?.budget ?? 1000;
     },
 
-    // Carrega lances do banco
     async loadBids() {
-        const { data } = await window.supabaseClient
+        let q = window.supabaseClient
             .from('waiver_bids')
             .select('*, managers(team_name)')
             .eq('status', 'pending')
             .order('bid_amount', { ascending: false });
+        const lid = Waiver.leagueId();
+        if (lid) q = q.eq('league_id', lid);
+        const { data } = await q;
         Waiver.state.bids = data || [];
         Waiver.state.myBids = Waiver.state.bids.filter(
             b => b.manager_id === Waiver.state.currentUser.id
         );
     },
 
-    // Verifica se jogador já foi draftado/está em algum time
     isPlayerOwned(playerId) {
-        return Draft.state.picks.some(p => p.player_id === playerId);
+        return (Draft.state.picks || []).some(p => p.player_id === playerId);
     },
 
-    // Retorna jogadores disponíveis para waiver (não draftados)
     getAvailablePlayers() {
         const search = document.getElementById('waiver-search')?.value?.toLowerCase() || '';
-        let players = PLAYERS_DATABASE.filter(p => !Waiver.isPlayerOwned(p.id));
-        if (search) players = players.filter(p => p.name.toLowerCase().includes(search));
-        return players.sort((a, b) => b.projPoints - a.projPoints);
-    },
-
-    // Faz um lance no waiver
-    async placeBid(player, dropPlayerId = null) {
-        const bidAmountEl = document.getElementById(`bid-input-${player.id}`);
-        const bidAmount = parseInt(bidAmountEl?.value || 0);
-
-        if (bidAmount < 1) {
-            Waiver.showToast('Lance mínimo: D$1', 'error'); return;
-        }
-        if (bidAmount > Waiver.state.managerBudget) {
-            Waiver.showToast('Saldo insuficiente!', 'error'); return;
-        }
-
-        // Cancela lance anterior do mesmo jogador se existir
-        await window.supabaseClient
-            .from('waiver_bids')
-            .delete()
-            .eq('manager_id', Waiver.state.currentUser.id)
-            .eq('player_id', player.id)
-            .eq('status', 'pending');
-
-        const { error } = await window.supabaseClient
-            .from('waiver_bids')
-            .insert({
-                manager_id: Waiver.state.currentUser.id,
-                player_id: player.id,
-                player_name: player.name,
-                player_position: player.position,
-                player_club: player.club,
-                drop_player_id: dropPlayerId,
-                bid_amount: bidAmount,
-                status: 'pending',
-                process_at: Waiver.nextProcessingTime().toISOString()
-            });
-
-        if (error) { Waiver.showToast('Erro ao registrar lance.', 'error'); return; }
-
-        await Waiver.loadBids();
-        Waiver.renderMyBids();
-        Waiver.renderWaiverPlayers();
-        Waiver.showToast(`Lance de D$${bidAmount} registrado para ${player.name}!`, 'success');
+        let list = PLAYERS_DATABASE.filter(p => !Waiver.isPlayerOwned(p.id));
+        if (search) list = list.filter(p => p.name.toLowerCase().includes(search));
+        return list.sort((a, b) => ((b.totalPoints||0) || b.projPoints) - ((a.totalPoints||0) || a.projPoints));
     },
 
     // Abre modal para escolher jogador a dropar
@@ -110,16 +77,19 @@ const Waiver = {
         if (bidAmount < 1) { Waiver.showToast('Digite o valor do lance primeiro.', 'error'); return; }
         if (bidAmount > Waiver.state.managerBudget) { Waiver.showToast('Saldo insuficiente!', 'error'); return; }
 
-        // Carrega meus jogadores do banco
-        const { data: myPicks } = await window.supabaseClient
+        let q = window.supabaseClient
             .from('draft_picks').select('*').eq('manager_id', Waiver.state.currentUser.id);
+        const lid = Waiver.leagueId();
+        if (lid) q = q.eq('league_id', lid);
+        const { data: myPicks } = await q;
 
         const playerList = (myPicks || []).map(pk => {
             const p = PLAYERS_DATABASE.find(x => x.id === pk.player_id);
             return p ? { ...p, pickId: pk.id } : null;
         }).filter(Boolean).sort((a,b) => a.position.localeCompare(b.position));
 
-        // Cria modal
+        if (!playerList.length) { Waiver.showToast('Você não tem jogadores no elenco para soltar.', 'error'); return; }
+
         let modal = document.getElementById('waiver-drop-modal');
         if (!modal) {
             modal = document.createElement('div');
@@ -132,13 +102,13 @@ const Waiver = {
             <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--border-radius-md);padding:24px;max-width:480px;width:100%;max-height:80vh;overflow-y:auto;">
                 <h3 style="margin-bottom:4px;"><i class="fa-solid fa-gavel" style="color:var(--neon-orange);"></i> Confirmar Lance</h3>
                 <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
-                    Você vai dar <strong style="color:var(--neon-green);">D$${bidAmount}</strong> por 
-                    <strong>${player.name}</strong> (${player.position}). 
+                    Você vai dar <strong style="color:var(--neon-green);">D$${bidAmount}</strong> por
+                    <strong>${player.name}</strong> (${player.position}).
                     Escolha qual jogador soltar do seu elenco:
                 </p>
                 <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;">
                     ${playerList.map(p => `
-                        <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--border-color);border-radius:8px;cursor:pointer;background:rgba(255,255,255,0.02);" 
+                        <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--border-color);border-radius:8px;cursor:pointer;background:rgba(255,255,255,0.02);"
                                onmouseover="this.style.borderColor='var(--neon-blue)'" onmouseout="this.style.borderColor='var(--border-color)'">
                             <input type="radio" name="drop-player" value="${p.id}" style="accent-color:var(--neon-blue);">
                             <span class="player-pos-badge pos-${p.position.toLowerCase()}">${p.position}</span>
@@ -165,12 +135,13 @@ const Waiver = {
         const dropPlayerId = parseInt(selected.value);
         document.getElementById('waiver-drop-modal').style.display = 'none';
 
-        // Insere bid com o drop
+        // Remove lance anterior do mesmo jogador
         await window.supabaseClient.from('waiver_bids').delete()
             .eq('manager_id', Waiver.state.currentUser.id)
             .eq('player_id', player.id).eq('status', 'pending');
 
         const { error } = await window.supabaseClient.from('waiver_bids').insert({
+            league_id: Waiver.leagueId(),
             manager_id: Waiver.state.currentUser.id,
             player_id: player.id,
             player_name: player.name,
@@ -187,14 +158,12 @@ const Waiver = {
         await Waiver.loadBids();
         Waiver.renderMyBids();
         Waiver.renderWaiverPlayers();
-        Waiver.showToast(`Lance de D$${bidAmount} registrado! ${player.name} entrará e jogador selecionado sairá.`, 'success');
+        Waiver.showToast(`Lance de D$${bidAmount} registrado para ${player.name}!`, 'success');
     },
 
-    // Cancela um lance
     async cancelBid(bidId) {
         await window.supabaseClient
-            .from('waiver_bids')
-            .delete()
+            .from('waiver_bids').delete()
             .eq('id', bidId)
             .eq('manager_id', Waiver.state.currentUser.id);
         await Waiver.loadBids();
@@ -203,22 +172,32 @@ const Waiver = {
         Waiver.showToast('Lance cancelado.', 'success');
     },
 
-    // Processa o waiver (roda às 8h — chamado manualmente pelo comissário ou por timer)
-    async processWaiver() {
-        const pendingBids = await window.supabaseClient
-            .from('waiver_bids')
-            .select('*')
+    // =========================================
+    // PROCESSAMENTO MANUAL (fallback do comissário)
+    // O processamento oficial roda no Vercel Cron às 08:00.
+    // Este botão existe só para emergências.
+    // =========================================
+    async processWaiverManual() {
+        if (!Waiver.isCommissioner()) {
+            Waiver.showToast('Apenas o comissário pode processar manualmente.', 'error');
+            return;
+        }
+        if (!confirm('Processar o waiver AGORA?\nNormalmente isso acontece automaticamente às 08:00. Use apenas se o processamento automático falhou.')) return;
+
+        let q = window.supabaseClient
+            .from('waiver_bids').select('*')
             .eq('status', 'pending')
             .order('bid_amount', { ascending: false });
+        const lid = Waiver.leagueId();
+        if (lid) q = q.eq('league_id', lid);
+        const { data: bids } = await q;
 
-        const bids = pendingBids.data || [];
         const processed = new Set();
-        const transactions = []; // para o resumo do chat
+        const transactions = [];
 
-        for (const bid of bids) {
+        for (const bid of (bids || [])) {
             if (processed.has(bid.player_id)) {
-                await window.supabaseClient
-                    .from('waiver_bids').update({ status: 'lost' }).eq('id', bid.id);
+                await window.supabaseClient.from('waiver_bids').update({ status: 'lost' }).eq('id', bid.id);
                 continue;
             }
 
@@ -226,13 +205,13 @@ const Waiver = {
                 .from('managers').select('budget, team_name').eq('id', bid.manager_id).single();
 
             if (!mgr || mgr.budget < bid.bid_amount) {
-                await window.supabaseClient
-                    .from('waiver_bids').update({ status: 'lost', result_note: 'Saldo insuficiente' }).eq('id', bid.id);
+                await window.supabaseClient.from('waiver_bids')
+                    .update({ status: 'lost', result_note: 'Saldo insuficiente' }).eq('id', bid.id);
                 continue;
             }
 
-            // Lance vencedor — adiciona ao roster
             await window.supabaseClient.from('draft_picks').insert({
+                league_id: bid.league_id || lid,
                 round: 0, pick_number: 9999,
                 manager_id: bid.manager_id,
                 player_id: bid.player_id,
@@ -241,27 +220,21 @@ const Waiver = {
                 player_club: bid.player_club,
             });
 
-            // Remove o jogador dropado do roster
             if (bid.drop_player_id) {
-                await window.supabaseClient.from('draft_picks')
-                    .delete()
+                await window.supabaseClient.from('draft_picks').delete()
                     .eq('manager_id', bid.manager_id)
                     .eq('player_id', bid.drop_player_id);
             }
 
-            await window.supabaseClient
-                .from('managers').update({ budget: mgr.budget - bid.bid_amount }).eq('id', bid.manager_id);
-
-            await window.supabaseClient
-                .from('waiver_bids').update({ status: 'won' }).eq('id', bid.id);
+            await window.supabaseClient.from('managers')
+                .update({ budget: mgr.budget - bid.bid_amount }).eq('id', bid.manager_id);
+            await window.supabaseClient.from('waiver_bids')
+                .update({ status: 'won' }).eq('id', bid.id);
 
             processed.add(bid.player_id);
-
-            // Registra transação para o resumo
             transactions.push({
                 team: mgr.team_name || bid.manager_id,
-                player: bid.player_name,
-                pos: bid.player_position,
+                player: bid.player_name, pos: bid.player_position,
                 value: bid.bid_amount,
                 dropped: bid.drop_player_id
                     ? PLAYERS_DATABASE.find(p => p.id === bid.drop_player_id)?.name || `#${bid.drop_player_id}`
@@ -269,37 +242,27 @@ const Waiver = {
             });
         }
 
-        // Posta resumo no chat se houve transações
-        if (transactions.length > 0 && window._currentUser) {
-            const lines = transactions.map(t => {
-                const dropStr = t.dropped ? ` | -${t.dropped}` : '';
-                return `• ${t.team}: +${t.player} (${t.pos}) D$${t.value}${dropStr}`;
-            }).join('\n');
+        const lines = transactions.length
+            ? transactions.map(t => `• ${t.team}: +${t.player} (${t.pos}) D$${t.value}${t.dropped ? ` | -${t.dropped}` : ''}`).join('\n')
+            : null;
 
-            await window.supabaseClient.from('chat_messages').insert({
-                league_id: window._currentLeague?.id || null,
-                manager_id: window._currentUser.id,
-                team_name: '🔨 Resumo do Mercado',
-                avatar_color: '#ff9f43',
-                message: `Waiver de hoje processado!\n${lines}`
-            });
-        } else if (transactions.length === 0 && window._currentUser) {
-            await window.supabaseClient.from('chat_messages').insert({
-                league_id: window._currentLeague?.id || null,
-                manager_id: window._currentUser.id,
-                team_name: '🔨 Resumo do Mercado',
-                avatar_color: '#ff9f43',
-                message: 'Waiver processado: nenhuma transação realizada hoje.'
-            });
-        }
+        await window.supabaseClient.from('chat_messages').insert({
+            league_id: lid,
+            manager_id: Waiver.state.currentUser.id,
+            team_name: '🔨 Resumo do Mercado',
+            avatar_color: '#ff9f43',
+            message: lines
+                ? `Waiver processado (manual)!\n${lines}`
+                : 'Waiver processado (manual): nenhuma transação realizada.'
+        });
 
         Waiver.showToast('Waiver processado!', 'success');
         await Waiver.loadBids();
         Waiver.renderMyBids();
         Waiver.renderWaiverPlayers();
+        if (typeof loadMyDraftedPlayers === 'function') loadMyDraftedPlayers();
     },
 
-    // Calcula próximo processamento (8h do próximo dia)
     nextProcessingTime() {
         const now = new Date();
         const next = new Date();
@@ -308,73 +271,42 @@ const Waiver = {
         return next;
     },
 
-    // Checa se existe bids pendentes com process_at já passado
-    // ATENÇÃO: só processa se o usuário for comissário, para evitar processamento acidental
-    async checkMissedProcessing() {
-        const now = new Date().toISOString();
-        const { data: overdue } = await window.supabaseClient
-            .from('waiver_bids')
-            .select('id')
-            .eq('status', 'pending')
-            .lte('process_at', now)
-            .limit(1);
-
-        if (overdue?.length > 0) {
-            console.log('Waiver: bids atrasadas encontradas.');
-            // Só processa automaticamente se for o comissário
-            // Para outros managers, apenas mostra aviso discreto
-            const isComm = window._currentLeague?.commissioner_id === Waiver.state.currentUser?.id
-                || Draft.state.managers?.[0]?.id === Waiver.state.currentUser?.id;
-            if (isComm) {
-                console.log('Waiver: processando como comissário...');
-                await Waiver.processWaiver();
-            } else {
-                console.log('Waiver: aguardando comissário processar o waiver atrasado.');
-            }
-        }
-    },
-
-    // Countdown até o próximo processamento
+    // Countdown APENAS VISUAL — quem processa é o cron do Vercel
     startCountdown() {
         clearInterval(Waiver.state.timerInterval);
         const el = document.getElementById('waiver-timer-display');
         const badge = document.getElementById('waiver-countdown-badge');
         if (!el) return;
 
-        // NÃO checa imediatamente ao abrir — evita processamento acidental
-        // Checa apenas após 5s para dar tempo da aba carregar completamente
-        setTimeout(() => Waiver.checkMissedProcessing(), 5000);
-
         Waiver.state.timerInterval = setInterval(() => {
-            const next = Waiver.nextProcessingTime();
-            const diff = next - new Date();
+            const diff = Waiver.nextProcessingTime() - new Date();
             const h = Math.floor(diff / 3600000);
             const m = Math.floor((diff % 3600000) / 60000);
             const s = Math.floor((diff % 60000) / 1000);
             const str = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
             if (el) el.textContent = str;
             if (badge) badge.textContent = str;
-
-            // Quando bater exatamente às 8h, processa
-            // Usa uma janela de 2s para evitar miss por latência
-            if (h === 0 && m === 0 && s <= 1) {
-                Waiver.processWaiver();
-            }
         }, 1000);
     },
 
-    // Render: meus lances pendentes
     renderMyBids() {
         const container = document.getElementById('my-waiver-bids');
         if (!container) return;
         const myBids = Waiver.state.myBids;
 
+        // Botão de processamento manual (só comissário)
+        const commBtn = Waiver.isCommissioner()
+            ? `<button class="action-btn" style="margin-bottom:10px; padding:5px 12px; font-size:11px; border-color:rgba(255,159,67,0.4); color:var(--neon-orange);"
+                 onclick="Waiver.processWaiverManual()">
+                 <i class="fa-solid fa-bolt"></i> Processar manualmente (emergência)
+               </button>` : '';
+
         if (myBids.length === 0) {
-            container.innerHTML = '<p style="color:var(--text-muted); font-size:13px;">Nenhum lance realizado ainda.</p>';
+            container.innerHTML = commBtn + '<p style="color:var(--text-muted); font-size:13px;">Nenhum lance realizado ainda.</p>';
             return;
         }
 
-        container.innerHTML = myBids.map(bid => `
+        container.innerHTML = commBtn + myBids.map(bid => `
             <div class="waiver-bid-row">
                 <div class="waiver-bid-info">
                     <span class="player-pos-badge pos-${bid.player_position.toLowerCase()}">${bid.player_position}</span>
@@ -394,34 +326,32 @@ const Waiver = {
         `).join('');
     },
 
-    // Render: jogadores disponíveis para dar lance
     renderWaiverPlayers() {
         const container = document.getElementById('waiver-players-list');
         if (!container) return;
-        const players = Waiver.getAvailablePlayers();
+        const list = Waiver.getAvailablePlayers();
         const myBidMap = {};
         Waiver.state.myBids.forEach(b => { myBidMap[b.player_id] = b; });
 
-        if (players.length === 0) {
+        if (list.length === 0) {
             container.innerHTML = '<p style="color:var(--text-muted); padding:16px; text-align:center;">Nenhum jogador disponível.</p>';
             return;
         }
 
-        container.innerHTML = players.map(p => {
+        container.innerHTML = list.map(p => {
             const myBid = myBidMap[p.id];
-            // Mostra apenas o SEU próprio lance, nunca o dos outros
-            const topBidDisplay = myBid ? `<span style="font-size:11px; color:var(--neon-orange);">Seu lance: D$${myBid.bid_amount}</span>` : '';
+            const hasReal = (p.totalPoints || 0) > 0;
+            const statLbl = hasReal ? `${p.totalPoints} pts temporada` : `Proj: ${p.projPoints} pts`;
 
             return `<div class="waiver-player-row">
                 <div class="draft-player-info">
                     <span class="player-pos-badge pos-${p.position.toLowerCase()}">${p.position}</span>
                     <div>
                         <div class="player-name-row">${p.name}</div>
-                        <div class="player-meta">${p.club} · Proj: ${p.projPoints} pts</div>
+                        <div class="player-meta">${p.club} · ${statLbl}</div>
                     </div>
                 </div>
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
-                    ${topBidDisplay}
                     ${myBid
                         ? `<span style="font-size:12px; color:var(--neon-green); font-weight:700;">Seu lance: D$${myBid.bid_amount}</span>
                            <button class="action-btn" style="padding:5px 10px; font-size:11px; border-color:rgba(255,71,87,0.3); color:var(--neon-red);"
@@ -438,7 +368,6 @@ const Waiver = {
         }).join('');
     },
 
-    // Mostra o painel correto conforme status do draft
     applyMarketMode() {
         const status = Draft.state.draftState?.draft_status || 'pending';
         const isFinished = Draft.state.draftState?.is_finished;
@@ -449,15 +378,12 @@ const Waiver = {
         const goBtn = document.getElementById('market-go-draft-btn');
         const waiverPanel = document.getElementById('waiver-panel');
 
-        // Lista sempre visível
         document.getElementById('free-market-panel').style.display = '';
 
         if (isFinished) {
-            // Pós-draft: mostra waiver + esconde banner
             waiverPanel.style.display = '';
             banner.style.display = 'none';
         } else if (status === 'active') {
-            // Durante draft: banner amarelo + botão de ir ao draft
             waiverPanel.style.display = 'none';
             banner.style.display = 'flex';
             banner.style.background = 'rgba(0,255,135,0.06)';
@@ -469,7 +395,6 @@ const Waiver = {
             desc.textContent = 'Jogadores só podem ser adquiridos pelo draft, na ordem das picks.';
             goBtn.style.display = '';
         } else {
-            // Pré-draft: banner cinza, sem botão
             waiverPanel.style.display = 'none';
             banner.style.display = 'flex';
             banner.style.background = 'rgba(255,255,255,0.03)';
@@ -484,6 +409,11 @@ const Waiver = {
     },
 
     subscribeRealtime() {
+        try {
+            const existing = window.supabaseClient.getChannels().find(c => c.topic === 'realtime:waiver-room');
+            if (existing) window.supabaseClient.removeChannel(existing);
+        } catch(e) {}
+
         window.supabaseClient
             .channel('waiver-room')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'waiver_bids' }, async () => {
@@ -508,7 +438,6 @@ const Waiver = {
     }
 };
 
-// Evento de busca no waiver
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('waiver-search')?.addEventListener('input', () => Waiver.renderWaiverPlayers());
 });

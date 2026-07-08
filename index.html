@@ -1091,7 +1091,25 @@
     <script src="jogos.js"></script>
     <script src="news.js"></script>
     <script src="league-system.js"></script>
+    <script src="stats.js"></script>
     <script src="app.js"></script>
     <script src="auth.js"></script>
+
+<div id="cfg-stats-panel-wrapper" style="display:none;"></div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() {
+        var target = document.getElementById('config-tab');
+        if (target && !document.getElementById('cfg-stats-panel')) {
+            var div = document.createElement('div');
+            div.className = 'glass-panel commissioner-only';
+            div.style.cssText = 'padding:16px; margin:16px auto; max-width:900px;';
+            div.innerHTML = '<h3 style="font-size:14px; margin-bottom:12px;"><i class="fa-solid fa-chart-line" style="color:var(--neon-blue);"></i> Estatísticas Reais (Cartola)</h3><div id="cfg-stats-panel"></div>';
+            target.appendChild(div);
+        }
+    }, 500);
+});
+</script>
+
 </body>
 </html>

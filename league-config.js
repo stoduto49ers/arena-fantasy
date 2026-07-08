@@ -33,10 +33,25 @@ const LeagueConfig = {
         LeagueConfig.state.config = data;
     },
 
+    leagueId() { return window.currentLeagueId?.() || window._currentLeague?.id || null; },
+
     async loadManagers() {
+        const lid = LeagueConfig.leagueId();
+        if (lid) {
+            const { data: members } = await window.supabaseClient
+                .from('league_members').select('manager_id')
+                .eq('league_id', lid).eq('status', 'approved');
+            const ids = (members || []).map(m => m.manager_id);
+            if (ids.length) {
+                const { data } = await window.supabaseClient
+                    .from('managers').select('*').in('id', ids)
+                    .order('created_at', { ascending: true });
+                LeagueConfig.state.managers = data || [];
+                return;
+            }
+        }
         const { data } = await window.supabaseClient
-            .from('managers')
-            .select('*')
+            .from('managers').select('*')
             .order('created_at', { ascending: true });
         LeagueConfig.state.managers = data || [];
     },
@@ -186,18 +201,14 @@ const LeagueConfig = {
         // Deleta grupos antigos
         await window.supabaseClient.from('league_groups').delete().neq('id', 0);
 
-        // Cria novos grupos
+        // Cria novos grupos — distribuição round-robin (justa mesmo com número ímpar)
         const groupNames = ['A','B','C','D','E','F','G','H'];
-        const groups = [];
-        for (let g = 0; g < groupCount; g++) {
-            const start = g * (managers.length / groupCount);
-            const end = start + (managers.length / groupCount);
-            const groupManagers = managers.slice(start, end);
-            groups.push({
-                group_name: groupNames[g],
-                manager_ids: groupManagers.map(m => m.id)
-            });
-        }
+        const buckets = Array.from({ length: groupCount }, () => []);
+        managers.forEach((m, i) => buckets[i % groupCount].push(m.id));
+        const groups = buckets.map((ids, g) => ({
+            group_name: groupNames[g],
+            manager_ids: ids
+        })).filter(g => g.manager_ids.length > 0);
 
         await window.supabaseClient.from('league_groups').insert(groups);
         await LeagueConfig.loadGroups();
@@ -214,14 +225,14 @@ const LeagueConfig = {
             return;
         }
 
-        // Deleta confrontos antigos da fase regular
-        await window.supabaseClient
-            .from('matchups')
-            .delete()
-            .eq('phase', 'regular');
+        // Deleta confrontos antigos da fase regular (só desta liga)
+        let delQ = window.supabaseClient.from('matchups').delete().eq('phase', 'regular');
+        const lid = LeagueConfig.leagueId();
+        if (lid) delQ = delQ.eq('league_id', lid);
+        await delQ;
 
         const allMatchups = [];
-        const totalWeeks = cfg.total_rounds - cfg.playoff_weeks;
+        const totalWeeks = Math.max(1, (cfg?.total_rounds || 38) - (cfg?.playoff_weeks || 3));
         let week = 1;
 
         // Para cada grupo, gera round-robin
@@ -238,11 +249,15 @@ const LeagueConfig = {
             rounds.forEach((matchup, idx) => {
                 const w = (idx % totalWeeks) + 1;
                 allMatchups.push({
+                    league_id: lid,
                     week: w,
                     home_manager_id: matchup.home,
                     away_manager_id: matchup.away,
                     phase: 'regular',
-                    group_name: group.group_name
+                    group_name: group.group_name,
+                    home_score: 0,
+                    away_score: 0,
+                    is_finished: false
                 });
             });
         });
@@ -259,6 +274,7 @@ const LeagueConfig = {
         LeagueConfig.renderFormat();
         LeagueConfig.renderGroups();
         LeagueConfig.toggleCommissionerControls();
+        if (typeof Stats !== 'undefined') Stats.renderCommissionerPanel();
     },
 
     toggleCommissionerControls() {
@@ -372,7 +388,7 @@ const LeagueConfig = {
         const user = window._currentUser;
         if (!user || !window.supabaseClient) return;
         await window.supabaseClient.from('chat_messages').insert({
-            league_id: window._currentLeague?.id || null,
+            league_id: LeagueConfig.leagueId(),
             manager_id: user.id,
             team_name: '⚙️ Sistema',
             avatar_color: '#a855f7',

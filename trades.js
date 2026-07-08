@@ -34,15 +34,33 @@ const Trades = {
         Trades.subscribeRealtime();
     },
 
+    leagueId() { return window.currentLeagueId?.() || window._currentLeague?.id || null; },
+
     async loadManagers() {
-        const { data } = await window.supabaseClient
-            .from('managers').select('id, team_name').neq('id', Trades.state.currentUser.id).order('team_name');
-        Trades.state.managers = data || [];
+        const lid = Trades.leagueId();
+        let ids = null;
+        if (lid) {
+            const { data: members } = await window.supabaseClient
+                .from('league_members').select('manager_id')
+                .eq('league_id', lid).eq('status', 'approved');
+            ids = (members || []).map(m => m.manager_id);
+        }
+        let q = window.supabaseClient
+            .from('managers').select('id, team_name')
+            .neq('id', Trades.state.currentUser.id).order('team_name');
+        if (ids?.length) q = q.in('id', ids);
+        const { data } = await q;
+        // Bots não negociam trocas
+        const BOT_PREFIX = '00000000-0000-0000-0000-';
+        Trades.state.managers = (data || []).filter(m => !m.id.startsWith(BOT_PREFIX));
     },
 
     async loadMyPicks() {
-        const { data } = await window.supabaseClient
+        let q = window.supabaseClient
             .from('draft_picks').select('*').eq('manager_id', Trades.state.currentUser.id);
+        const lid = Trades.leagueId();
+        if (lid) q = q.eq('league_id', lid);
+        const { data } = await q;
         Trades.state.myPicks = data || [];
     },
 
@@ -55,8 +73,11 @@ const Trades = {
     },
 
     async loadTheirPicks(managerId) {
-        const { data } = await window.supabaseClient
+        let q = window.supabaseClient
             .from('draft_picks').select('*').eq('manager_id', managerId);
+        const lid = Trades.leagueId();
+        if (lid) q = q.eq('league_id', lid);
+        const { data } = await q;
         Trades.state.theirPicks = data || [];
     },
 
@@ -165,6 +186,7 @@ const Trades = {
             .map(p => ({ id: p.player_id, name: p.player_name, pos: p.player_position, club: p.player_club }));
 
         const { error } = await window.supabaseClient.from('trades').insert({
+            league_id: Trades.leagueId(),
             proposer_id: Trades.state.currentUser.id,
             receiver_id: targetId,
             offer_players: offerPlayers,
@@ -236,7 +258,7 @@ const Trades = {
         const moneyPart = offerMoney > 0 ? ` + D$${offerMoney}` : requestMoney > 0 ? ` (+ D$${requestMoney})` : '';
         if (window._currentUser) {
             await window.supabaseClient.from('chat_messages').insert({
-                league_id: window._currentLeague?.id || null,
+                league_id: Trades.leagueId(),
                 manager_id: window._currentUser.id,
                 team_name: '🔄 Troca',
                 avatar_color: '#00ff87',

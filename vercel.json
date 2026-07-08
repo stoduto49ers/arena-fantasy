@@ -1,15 +1,9 @@
 {
   "version": 2,
-  "builds": [
+  "crons": [
     {
-      "src": "**/*",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/$1"
+      "path": "/api/process-waiver",
+      "schedule": "0 11 * * *"
     }
   ]
 }

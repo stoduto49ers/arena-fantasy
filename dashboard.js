@@ -36,16 +36,22 @@ const Dashboard = {
 
     async loadManagers() {
         try {
-            const { data, error } = await window.supabaseClient
-                .from('managers')
-                .select('*')
+            const lid = window.currentLeagueId?.() || window._currentLeague?.id || null;
+            let ids = null;
+            if (lid) {
+                const { data: members } = await window.supabaseClient
+                    .from('league_members').select('manager_id')
+                    .eq('league_id', lid).eq('status', 'approved');
+                ids = (members || []).map(m => m.manager_id);
+            }
+            let q = window.supabaseClient
+                .from('managers').select('*')
                 .order('total_points', { ascending: false });
+            if (ids?.length) q = q.in('id', ids);
+            const { data, error } = await q;
             if (error) throw error;
-            // Filtra bots localmente
-            const BOT_PREFIX = '00000000-0000-0000-0000-';
-            const real = (data || []).filter(m => !m.id.startsWith(BOT_PREFIX));
-            Dashboard.state.managers = real;
-            Dashboard.state.myManager = real.find(m => m.id === Dashboard.state.currentUser?.id);
+            Dashboard.state.managers = data || [];
+            Dashboard.state.myManager = (data || []).find(m => m.id === Dashboard.state.currentUser?.id);
         } catch(e) {
             console.warn('loadManagers error:', e);
         }
@@ -53,22 +59,28 @@ const Dashboard = {
 
     async loadMyPicks() {
         if (!Dashboard.state.currentUser) return;
-        const { data } = await window.supabaseClient
+        let q = window.supabaseClient
             .from('draft_picks')
             .select('*')
             .eq('manager_id', Dashboard.state.currentUser.id);
+        const lid = window.currentLeagueId?.() || window._currentLeague?.id || null;
+        if (lid) q = q.eq('league_id', lid);
+        const { data } = await q;
         Dashboard.state.myPicks = data || [];
     },
 
     async loadNextMatchup() {
         if (!Dashboard.state.currentUser) return;
-        const { data } = await window.supabaseClient
+        let q = window.supabaseClient
             .from('matchups')
             .select('*, home:home_manager_id(team_name), away:away_manager_id(team_name)')
             .or(`home_manager_id.eq.${Dashboard.state.currentUser.id},away_manager_id.eq.${Dashboard.state.currentUser.id}`)
             .eq('is_finished', false)
             .order('week', { ascending: true })
             .limit(1);
+        const lid = window.currentLeagueId?.() || window._currentLeague?.id || null;
+        if (lid) q = q.eq('league_id', lid);
+        const { data } = await q;
         Dashboard.state.nextMatchup = data?.[0] || null;
     },
 
