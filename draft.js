@@ -79,7 +79,7 @@ const Draft = {
         Draft.state.picks = data || [];
     },
 
-    // --- Carrega o estado atual do draft (da liga, fallback id=1) ---
+    // --- Carrega o estado atual do draft (da liga; cria se não existir) ---
     async loadDraftState() {
         const lid = Draft.leagueId();
         if (lid) {
@@ -89,7 +89,17 @@ const Draft = {
                 .eq('league_id', lid)
                 .limit(1);
             if (data?.length) { Draft.state.draftState = data[0]; return; }
+
+            // Liga nova sem estado de draft: cria um do zero
+            const { data: created, error } = await window.supabaseClient
+                .from('draft_state')
+                .insert({ league_id: lid, current_pick_index: 0, is_finished: false })
+                .select()
+                .single();
+            if (created) { Draft.state.draftState = created; return; }
+            if (error) console.warn('Não foi possível criar draft_state da liga (rode a migration_v3.sql):', error.message);
         }
+        // Fallback legado (liga única antiga)
         const { data } = await window.supabaseClient
             .from('draft_state')
             .select('*')
