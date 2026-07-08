@@ -161,8 +161,67 @@ const Stats = {
         return { matched: rows.length - unmatched.length, unmatched };
     },
 
-    // Correção manual: cole o nome exato do nosso banco e o cartola_id correto.
-    // Para achar o cartola_id: Stats.searchCartola('parte do nome')
+    // Mostra o elenco INTEIRO de um clube no Cartola, lado a lado com
+    // quem está sem match no nosso banco naquele clube. Use para corrigir
+    // vários jogadores de uma vez com Stats.bulkFix(...).
+    async showClubRoster(clubAbrev) {
+        const mercado = await Stats.fetchCartola('mercado');
+        const atletas = mercado.atletas || [];
+        const clubes = mercado.clubes || {};
+        const clubId = Object.entries(clubes).find(([id, c]) =>
+            (c.abreviacao || '').toUpperCase() === clubAbrev.toUpperCase()
+        )?.[0];
+
+        if (!clubId) { console.warn('Clube não encontrado:', clubAbrev); return; }
+
+        const roster = atletas.filter(a => String(a.clube_id) === String(clubId));
+        const { data: unmatched } = await window.supabaseClient
+            .from('player_map').select('player_id, player_name')
+            .eq('match_type', 'unmatched');
+
+        const ourMissing = (unmatched || [])
+            .map(u => PLAYERS_DATABASE.find(p => p.id === u.player_id))
+            .filter(p => p && p.club === clubAbrev.toUpperCase());
+
+        console.log(`%c--- SEM MATCH no nosso banco (${clubAbrev}) ---`, 'font-weight:bold;color:#ff9f43;');
+        console.table(ourMissing.map(p => ({ nosso_nome: p.name, posicao: p.position })));
+
+        console.log(`%c--- ELENCO COMPLETO no Cartola (${clubAbrev}) ---`, 'font-weight:bold;color:#00f2fe;');
+        console.table(roster.map(a => ({ atleta_id: a.atleta_id, apelido: a.apelido, nome: a.nome, posicao_id: a.posicao_id })));
+
+        console.log(`%cDepois de comparar, corrija com:`, 'color:#888;');
+        console.log(`Stats.bulkFix({ "Nome Exato Nosso": 12345, "Outro Nome": 67890 })`);
+
+        return { ourMissing, roster };
+    },
+
+    // Corrige vários jogadores de uma vez.
+    // Exemplo: Stats.bulkFix({ "Aranha": 12345, "Raphael Veiga": 67890 })
+    async bulkFix(map) {
+        const rows = [];
+        const notFound = [];
+        Object.entries(map).forEach(([name, cartolaId]) => {
+            const p = PLAYERS_DATABASE.find(x => Stats.normalize(Stats.stripClubSuffix(x.name)) === Stats.normalize(name));
+            if (!p) { notFound.push(name); return; }
+            rows.push({
+                player_id: p.id, cartola_id: cartolaId,
+                player_name: p.name, matched_name: '(manual/lote)',
+                match_type: 'manual', updated_at: new Date().toISOString(),
+            });
+        });
+
+        if (notFound.length) console.warn('Não encontrados no NOSSO banco (confira a grafia):', notFound);
+        if (!rows.length) { console.warn('Nada para corrigir.'); return; }
+
+        const { error } = await window.supabaseClient
+            .from('player_map').upsert(rows, { onConflict: 'player_id' });
+        if (error) { console.error('Erro no bulkFix:', error); return; }
+
+        await Stats.loadMapping();
+        console.log(`✓ ${rows.length} jogadores corrigidos.`);
+    },
+
+    // Correção manual individual: cole o nome exato do nosso banco e o cartola_id correto.
     async searchCartola(query) {
         const mercado = await Stats.fetchCartola('mercado');
         const atletas = mercado.atletas || [];
