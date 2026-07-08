@@ -44,6 +44,19 @@ const Stats = {
             .trim();
     },
 
+    // Alguns nomes em players.js têm a sigla do clube colada no final
+    // para diferenciar jogadores com nome repetido (ex: "Vitinho BAH").
+    // Remove esse sufixo antes de comparar com o Cartola.
+    CLUB_CODES: ['FLA','PAL','BOT','CRU','BAH','SPFC','CAM','COR','GRE','FLU','VAS','INT','BRA','MIR','ATH','COT','CHE','REM','VIT','SAN'],
+    stripClubSuffix(name) {
+        const parts = (name || '').trim().split(' ');
+        const last = parts[parts.length - 1];
+        if (parts.length > 1 && Stats.CLUB_CODES.includes(last)) {
+            return parts.slice(0, -1).join(' ');
+        }
+        return name;
+    },
+
     async fetchCartola(endpoint) {
         const res = await fetch(`/api/cartola?endpoint=${endpoint}`);
         if (!res.ok) throw new Error(`Proxy Cartola falhou: ${res.status}`);
@@ -89,17 +102,28 @@ const Stats = {
         const usedCartolaIds = new Set();
 
         PLAYERS_DATABASE.forEach(p => {
+            const cleanName = Stats.stripClubSuffix(p.name);
             const candidates = (byClub[p.club] || []).filter(a => !usedCartolaIds.has(a.atleta_id));
-            const target = Stats.normalize(p.name);
+            const target = Stats.normalize(cleanName);
 
+            // 1º: match exato dentro do mesmo clube
             let found = candidates.find(a =>
                 Stats.normalize(a.apelido) === target || Stats.normalize(a.nome) === target
             );
+            // 2º: match parcial dentro do mesmo clube
             if (!found) {
                 found = candidates.find(a => {
                     const ap = Stats.normalize(a.apelido);
                     return ap && ap.length > 3 && (ap.includes(target) || target.includes(ap));
                 });
+            }
+            // 3º: match exato em QUALQUER clube (cobre jogador transferido /
+            //     clube com sigla diferente da nossa base)
+            if (!found) {
+                found = atletas.find(a =>
+                    !usedCartolaIds.has(a.atleta_id) &&
+                    (Stats.normalize(a.apelido) === target || Stats.normalize(a.nome) === target)
+                );
             }
 
             if (found) {
@@ -129,10 +153,40 @@ const Stats = {
         await Stats.loadMapping();
 
         const msg = `Mapeamento: ${rows.length - unmatched.length}/${rows.length} casados.`;
-        console.log(msg, 'Não encontrados:', unmatched.map(p => `${p.name} (${p.club})`));
-        Stats.toast(msg + (unmatched.length ? ' Veja o console (F12) para a lista.' : ''));
+        console.log(msg);
+        console.log('Não encontrados (copie esta linha):');
+        console.log(unmatched.map(p => `${p.name} (${p.club})`).join(', '));
+        Stats.toast(msg + (unmatched.length ? ` ${unmatched.length} não encontrados — veja console.` : ''));
         Stats.renderCommissionerPanel();
         return { matched: rows.length - unmatched.length, unmatched };
+    },
+
+    // Correção manual: cole o nome exato do nosso banco e o cartola_id correto.
+    // Para achar o cartola_id: Stats.searchCartola('parte do nome')
+    async searchCartola(query) {
+        const mercado = await Stats.fetchCartola('mercado');
+        const atletas = mercado.atletas || [];
+        const q = Stats.normalize(query);
+        const results = atletas.filter(a =>
+            Stats.normalize(a.apelido).includes(q) || Stats.normalize(a.nome).includes(q)
+        );
+        console.table(results.map(a => ({ atleta_id: a.atleta_id, apelido: a.apelido, nome: a.nome, clube_id: a.clube_id })));
+        return results;
+    },
+
+    async fixMapping(playerName, cartolaId) {
+        const p = PLAYERS_DATABASE.find(x => Stats.normalize(x.name) === Stats.normalize(playerName));
+        if (!p) { console.warn('Jogador não encontrado no nosso banco:', playerName); return; }
+
+        const { error } = await window.supabaseClient.from('player_map').upsert({
+            player_id: p.id, cartola_id: cartolaId,
+            player_name: p.name, matched_name: '(manual)',
+            match_type: 'manual', updated_at: new Date().toISOString(),
+        }, { onConflict: 'player_id' });
+
+        if (error) { console.error('Erro ao corrigir:', error); return; }
+        await Stats.loadMapping();
+        console.log(`✓ ${p.name} → cartola_id ${cartolaId}`);
     },
 
     async loadMapping() {
