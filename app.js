@@ -181,6 +181,27 @@ function isInLineup(playerId) {
 // --- Persistência da escalação ---
 const LineupStore = {
     _saveTimeout: null,
+    _statusCache: null,
+    _statusCacheTime: 0,
+    _lockWarned: false,
+
+    // Mercado do Cartola aberto = pode editar escalação.
+    // Fechado (jogos da rodada em andamento) = escalação TRAVADA,
+    // para ninguém trocar jogador depois de ver quem pontuou.
+    async isMarketOpen() {
+        try {
+            if (LineupStore._statusCache && (Date.now() - LineupStore._statusCacheTime) < 60000) {
+                return LineupStore._statusCache.status_mercado === 1;
+            }
+            const r = await fetch('/api/cartola?endpoint=status');
+            const s = await r.json();
+            LineupStore._statusCache = s;
+            LineupStore._statusCacheTime = Date.now();
+            return s.status_mercado === 1; // 1 = aberto
+        } catch(e) {
+            return true; // se a API falhar, não bloqueia (evita travar o app por indisponibilidade)
+        }
+    },
 
     // Semana atual da liga (menor week não finalizada); cacheada
     async currentWeek() {
@@ -216,6 +237,16 @@ const LineupStore = {
     async save() {
         const user = window._currentUser;
         if (!user) return;
+
+        // Trava anti-furo: rodada em andamento = sem mudanças
+        if (!(await LineupStore.isMarketOpen())) {
+            if (!LineupStore._lockWarned) {
+                LineupStore._lockWarned = true;
+                alert('⚠ Rodada do Brasileirão em andamento!\nAs escalações estão travadas até o mercado reabrir. Suas mudanças NÃO serão salvas.');
+            }
+            return;
+        }
+
         const week = await LineupStore.currentWeek();
         const { starters, bench } = LineupStore.serialize();
 

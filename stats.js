@@ -161,6 +161,66 @@ const Stats = {
         return { matched: rows.length - unmatched.length, unmatched };
     },
 
+
+    // =========================================
+    // AUDITORIA DO MAPEAMENTO
+    // Confere: quantos casados, quantos manuais, quantos sem match,
+    // e detecta possíveis matches ERRADOS (posição divergente entre
+    // nossa base e o Cartola — sinal de homônimo trocado).
+    // Uso no console: Stats.auditMapping()
+    // =========================================
+    async auditMapping() {
+        const mercado = await Stats.fetchCartola('mercado');
+        const atletaById = {};
+        (mercado.atletas || []).forEach(a => { atletaById[a.atleta_id] = a; });
+        const POS = { 1: 'GOL', 2: 'LAT', 3: 'ZAG', 4: 'MEI', 5: 'ATA', 6: 'TEC' };
+
+        const { data: map } = await window.supabaseClient.from('player_map').select('*');
+        const counts = { auto: 0, manual: 0, unmatched: 0 };
+        const suspicious = [];
+        const staleIds = [];
+
+        (map || []).forEach(r => {
+            counts[r.match_type] = (counts[r.match_type] || 0) + 1;
+            if (!r.cartola_id) return;
+            const a = atletaById[r.cartola_id];
+            if (!a) { staleIds.push(r.player_name); return; } // id não existe mais no Cartola
+            const p = PLAYERS_DATABASE.find(x => x.id === r.player_id);
+            const cpos = POS[a.posicao_id];
+            if (p && cpos && cpos !== 'TEC' && p.position !== cpos) {
+                suspicious.push({
+                    nosso_jogador: p.name, nossa_pos: p.position,
+                    cartola_apelido: a.apelido, pos_cartola: cpos,
+                    cartola_id: r.cartola_id
+                });
+            }
+        });
+
+        const total = (map || []).length;
+        console.log(`%c=== AUDITORIA DO MAPEAMENTO ===`, 'font-weight:bold;color:#00f2fe;');
+        console.log(`Total: ${total} | Automáticos: ${counts.auto||0} | Manuais: ${counts.manual||0} | SEM match: ${counts.unmatched||0}`);
+
+        if (suspicious.length) {
+            console.log(`%c⚠ ${suspicious.length} POSSÍVEIS MATCHES ERRADOS (posição divergente) — revise com Stats.searchCartola e corrija com Stats.fixMapping:`, 'color:#ff4757;font-weight:bold;');
+            console.table(suspicious);
+        } else {
+            console.log('%c✓ Nenhuma divergência de posição nos matches.', 'color:#00ff87;');
+        }
+
+        if (staleIds.length) {
+            console.log(`%c⚠ ${staleIds.length} matches apontam para IDs que saíram do Cartola (jogador transferido/removido):`, 'color:#ff9f43;');
+            console.log(staleIds.join(', '));
+        }
+
+        const unmatchedList = (map || []).filter(r => r.match_type === 'unmatched').map(r => r.player_name);
+        if (unmatchedList.length) {
+            console.log('%cSem match (não pontuam até serem corrigidos ou removidos do jogo):', 'color:#888;');
+            console.log(unmatchedList.join(', '));
+        }
+
+        return { counts, suspicious, staleIds, unmatched: unmatchedList };
+    },
+
     // Mostra o elenco INTEIRO de um clube no Cartola, lado a lado com
     // quem está sem match no nosso banco naquele clube. Use para corrigir
     // vários jogadores de uma vez com Stats.bulkFix(...).

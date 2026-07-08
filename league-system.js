@@ -106,8 +106,55 @@ const LeagueSystem = {
                 </div>`).join('')}` : '';
         }
 
+        // --- Botão de criar liga ---
+        const createEl = document.getElementById('home-create-league');
+        if (!createEl && leaguesEl) {
+            const btn = document.createElement('button');
+            btn.id = 'home-create-league';
+            btn.className = 'action-btn';
+            btn.style.cssText = 'margin-top:12px; width:100%; justify-content:center; border-style:dashed;';
+            btn.innerHTML = '<i class="fa-solid fa-plus"></i> Criar Nova Liga';
+            btn.onclick = () => LeagueSystem.createLeague();
+            leaguesEl.parentElement.appendChild(btn);
+        }
+
         // --- Busca (mostra ligas que não é membro aprovado) ---
         LeagueSystem.renderAvailableLeagues();
+    },
+
+    // Cria uma liga nova com o usuário atual como comissário
+    async createLeague() {
+        const name = prompt('Nome da nova liga:');
+        if (!name || !name.trim()) return;
+        let maxTeams = parseInt(prompt('Número máximo de times (2 a 16):', '12'));
+        if (!maxTeams || maxTeams < 2) maxTeams = 12;
+        if (maxTeams > 16) maxTeams = 16;
+
+        const uid = LeagueSystem.state.user.id;
+
+        const { data: league, error } = await window.supabaseClient
+            .from('leagues')
+            .insert({ name: name.trim(), commissioner_id: uid, max_teams: maxTeams })
+            .select()
+            .single();
+
+        if (error || !league) {
+            console.error('createLeague error:', error);
+            LeagueSystem.toast('Erro ao criar a liga. Veja o console (F12).', 'error');
+            return;
+        }
+
+        // Criador entra como membro aprovado automaticamente
+        await window.supabaseClient.from('league_members').insert({
+            league_id: league.id,
+            manager_id: uid,
+            status: 'approved',
+            approved_at: new Date().toISOString()
+        });
+
+        LeagueSystem.toast(`Liga "${league.name}" criada! Você é o comissário.`, 'success');
+        await LeagueSystem.loadAll();
+        LeagueSystem.renderHome();
     },
 
     renderAvailableLeagues(filter = '') {
