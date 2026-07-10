@@ -7,21 +7,23 @@
     --bg-card: rgba(23, 28, 48, 0.6);
     --bg-card-hover: rgba(33, 40, 68, 0.85);
     --border-color: rgba(255, 255, 255, 0.08);
-    --border-color-active: rgba(0, 242, 254, 0.4);
+    --border-color-active: rgba(255, 122, 89, 0.4);
     
     --text-primary: #ffffff;
     --text-secondary: #90a0c0;
     --text-muted: #62728f;
     
-    /* Neon Accents */
-    --neon-green: #00ff87;
-    --neon-blue: #00f2fe;
+    /* Brand + Accents */
+    --brand: #ff7a59;          /* Prancheta orange (primary) */
+    --brand-ink: #170703;      /* text/icon on brand fills */
+    --neon-green: #35e08c;     /* positive / success */
+    --neon-blue: #ff7a59;      /* repointed to brand for a single cohesive accent */
     --neon-purple: #b92bff;
     --neon-orange: #ff9f43;
-    --neon-red: #ff4757;
+    --neon-red: #ff4757;       /* alerts / LIVE */
     
-    /* Gradients */
-    --grad-primary: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+    /* Gradients (solid brand — no more generic cyan gradient) */
+    --grad-primary: linear-gradient(135deg, #ff7a59 0%, #ff5e3a 100%);
     --grad-success: linear-gradient(135deg, #00ff87 0%, #60efff 100%);
     --grad-purple: linear-gradient(135deg, #b92bff 0%, #3d6aff 100%);
     --grad-dark: linear-gradient(180deg, #171c30 0%, #0a0c14 100%);
@@ -118,21 +120,24 @@ body {
 .logo-badge {
     width: 48px;
     height: 48px;
-    background: var(--grad-primary);
+    background: var(--brand);
     border-radius: 14px;
     display: flex;
     justify-content: center;
     align-items: center;
-    font-weight: 800;
-    font-size: 22px;
-    color: var(--bg-darkest);
-    box-shadow: 0 0 15px rgba(0, 242, 254, 0.4);
-    transform: rotate(-5deg);
+    color: var(--brand-ink);
+    box-shadow: 0 6px 18px rgba(255, 122, 89, 0.35);
     transition: var(--transition-smooth);
+    overflow: hidden;
+}
+
+.logo-badge svg {
+    width: 58%;
+    height: 58%;
 }
 
 .logo-container:hover .logo-badge {
-    transform: rotate(0deg) scale(1.05);
+    transform: scale(1.06);
 }
 
 .nav-divider {
@@ -173,7 +178,7 @@ body {
 }
 
 .nav-item.active {
-    box-shadow: 0 0 12px rgba(0, 242, 254, 0.2);
+    box-shadow: 0 0 12px rgba(255, 122, 89, 0.2);
 }
 
 .nav-item.active::before {
@@ -321,12 +326,12 @@ body {
     color: var(--bg-darkest);
     border: none;
     font-weight: 700;
-    box-shadow: 0 4px 15px rgba(0, 242, 254, 0.3);
+    box-shadow: 0 4px 15px rgba(255, 122, 89, 0.3);
 }
 
 .action-btn.primary:hover {
     transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(0, 242, 254, 0.5);
+    box-shadow: 0 6px 20px rgba(255, 122, 89, 0.5);
 }
 
 /* Tabs Content Area */
@@ -387,7 +392,7 @@ body {
 
 .dashboard-banner {
     background: linear-gradient(135deg, rgba(23, 28, 48, 0.8) 0%, rgba(10, 12, 20, 0.9) 100%), 
-                radial-gradient(circle at 80% 20%, rgba(0, 242, 254, 0.15) 0%, transparent 50%);
+                radial-gradient(circle at 80% 20%, rgba(255, 122, 89, 0.15) 0%, transparent 50%);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius-lg);
     padding: 30px;
@@ -466,9 +471,9 @@ body {
 }
 
 .feed-badge.trade {
-    background-color: rgba(0, 242, 254, 0.15);
+    background-color: rgba(255, 122, 89, 0.15);
     color: var(--neon-blue);
-    border: 1px solid rgba(0, 242, 254, 0.3);
+    border: 1px solid rgba(255, 122, 89, 0.3);
 }
 
 .feed-badge.system {
@@ -664,7 +669,7 @@ body {
 
 .draft-cell.user-pick {
     border-color: var(--neon-blue);
-    background: rgba(0, 242, 254, 0.08);
+    background: rgba(255, 122, 89, 0.08);
 }
 
 .draft-cell .pick-num {
@@ -915,7 +920,7 @@ body {
     border: 2px solid var(--neon-blue);
     color: var(--neon-blue);
     font-size: 20px;
-    box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+    box-shadow: 0 0 10px rgba(255, 122, 89, 0.2);
 }
 
 .pitch-player-slot.filled:hover .player-slot-badge {
@@ -1002,7 +1007,7 @@ body {
 .market-search input:focus {
     border-color: var(--neon-blue);
     background-color: rgba(255,255,255,0.06);
-    box-shadow: 0 0 10px rgba(0, 242, 254, 0.15);
+    box-shadow: 0 0 10px rgba(255, 122, 89, 0.15);
 }
 
 .market-search i {
@@ -1038,8 +1043,8 @@ body {
 }
 
 .filter-pill.active {
-    background: rgba(0, 242, 254, 0.1);
-    box-shadow: 0 0 8px rgba(0, 242, 254, 0.1);
+    background: rgba(255, 122, 89, 0.1);
+    box-shadow: 0 0 8px rgba(255, 122, 89, 0.1);
 }
 
 /* Players List Grid / Table */
@@ -1144,7 +1149,7 @@ body {
 .market-action-btn:hover {
     background: var(--neon-blue);
     color: var(--bg-darkest);
-    box-shadow: 0 0 10px rgba(0, 242, 254, 0.3);
+    box-shadow: 0 0 10px rgba(255, 122, 89, 0.3);
 }
 
 .market-action-btn.added {
@@ -1301,7 +1306,7 @@ body {
 
 .chat-input-container:focus-within {
     border-color: var(--neon-blue);
-    box-shadow: 0 0 10px rgba(0, 242, 254, 0.1);
+    box-shadow: 0 0 10px rgba(255, 122, 89, 0.1);
 }
 
 .chat-input-container input {
@@ -1356,7 +1361,7 @@ body {
 
 .chat-send-btn:hover {
     transform: scale(1.05);
-    box-shadow: 0 0 8px rgba(0, 242, 254, 0.3);
+    box-shadow: 0 0 8px rgba(255, 122, 89, 0.3);
 }
 
 /* Matchup screen head-to-head elements */
@@ -1594,7 +1599,7 @@ body {
 
 .auth-input-wrap:focus-within {
     border-color: var(--neon-blue);
-    box-shadow: 0 0 10px rgba(0,242,254,0.1);
+    box-shadow: 0 0 10px rgba(255,122,89,0.1);
 }
 
 .auth-input-wrap i {
@@ -1701,9 +1706,9 @@ body {
 }
 
 .draft-board-manager.is-me {
-    background: rgba(0,242,254,0.1);
+    background: rgba(255,122,89,0.1);
     color: var(--neon-blue);
-    border-color: rgba(0,242,254,0.2);
+    border-color: rgba(255,122,89,0.2);
 }
 
 .draft-board-pick.empty {
@@ -1728,8 +1733,8 @@ body {
 }
 
 .draft-board-pick.my-pick-slot.empty {
-    border-color: rgba(0,242,254,0.2);
-    background: rgba(0,242,254,0.04);
+    border-color: rgba(255,122,89,0.2);
+    background: rgba(255,122,89,0.04);
 }
 
 .draft-board-pick.picked {
@@ -1761,7 +1766,7 @@ body {
 
 /* Cores por posição no board */
 .draft-board-pick.pos-gol { background: rgba(255,200,0,0.12); border-color: rgba(255,200,0,0.2); }
-.draft-board-pick.pos-zag { background: rgba(0,242,254,0.1); border-color: rgba(0,242,254,0.2); }
+.draft-board-pick.pos-zag { background: rgba(255,122,89,0.1); border-color: rgba(255,122,89,0.2); }
 .draft-board-pick.pos-lat { background: rgba(0,255,135,0.1); border-color: rgba(0,255,135,0.2); }
 .draft-board-pick.pos-mei { background: rgba(168,85,247,0.12); border-color: rgba(168,85,247,0.2); }
 .draft-board-pick.pos-ata { background: rgba(255,71,87,0.12); border-color: rgba(255,71,87,0.2); }
@@ -1800,7 +1805,7 @@ body {
 }
 
 .player-pos-badge.pos-gol { background: rgba(255,200,0,0.2); color: #ffc800; }
-.player-pos-badge.pos-zag { background: rgba(0,242,254,0.15); color: var(--neon-blue); }
+.player-pos-badge.pos-zag { background: rgba(255,122,89,0.15); color: var(--neon-blue); }
 .player-pos-badge.pos-lat { background: rgba(0,255,135,0.15); color: var(--neon-green); }
 .player-pos-badge.pos-mei { background: rgba(168,85,247,0.2); color: #a855f7; }
 .player-pos-badge.pos-ata { background: rgba(255,71,87,0.2); color: var(--neon-red); }
@@ -1822,7 +1827,7 @@ body {
     margin-bottom: 6px;
 }
 .my-team-pos-label.pos-gol { background: rgba(255,200,0,0.15); color: #ffc800; }
-.my-team-pos-label.pos-zag { background: rgba(0,242,254,0.1); color: var(--neon-blue); }
+.my-team-pos-label.pos-zag { background: rgba(255,122,89,0.1); color: var(--neon-blue); }
 .my-team-pos-label.pos-lat { background: rgba(0,255,135,0.1); color: var(--neon-green); }
 .my-team-pos-label.pos-mei { background: rgba(168,85,247,0.15); color: #a855f7; }
 .my-team-pos-label.pos-ata { background: rgba(255,71,87,0.1); color: var(--neon-red); }
@@ -2146,7 +2151,7 @@ body {
 }
 
 .market-tab-btn.active {
-    background: rgba(0,242,254,0.08);
+    background: rgba(255,122,89,0.08);
     border-color: var(--neon-blue);
     color: var(--neon-blue);
 }
@@ -2208,7 +2213,7 @@ body {
 
 .trade-player-row:hover { background: rgba(255,255,255,0.06); border-color: var(--border-color); }
 .trade-player-row.selected { background: rgba(0,255,135,0.08); border-color: rgba(0,255,135,0.25); }
-.trade-player-row.selected-blue { background: rgba(0,242,254,0.08); border-color: rgba(0,242,254,0.25); }
+.trade-player-row.selected-blue { background: rgba(255,122,89,0.08); border-color: rgba(255,122,89,0.25); }
 
 .trade-card {
     background: rgba(255,255,255,0.03);
@@ -2282,7 +2287,7 @@ body {
 }
 
 .pos-pill.pos-gol { background: rgba(255,200,0,0.15); color: #ffc800; }
-.pos-pill.pos-zag { background: rgba(0,242,254,0.1); color: var(--neon-blue); }
+.pos-pill.pos-zag { background: rgba(255,122,89,0.1); color: var(--neon-blue); }
 .pos-pill.pos-lat { background: rgba(0,255,135,0.1); color: var(--neon-green); }
 .pos-pill.pos-mei { background: rgba(168,85,247,0.15); color: #a855f7; }
 .pos-pill.pos-ata { background: rgba(255,71,87,0.1); color: var(--neon-red); }
@@ -2467,9 +2472,9 @@ body {
     font-weight: 800;
     padding: 2px 6px;
     border-radius: 4px;
-    background: rgba(0,242,254,0.1);
+    background: rgba(255,122,89,0.1);
     color: var(--neon-blue);
-    border: 1px solid rgba(0,242,254,0.2);
+    border: 1px solid rgba(255,122,89,0.2);
     flex-shrink: 0;
 }
 
@@ -2657,7 +2662,7 @@ body {
 
 .league-card:hover {
     border-color: var(--neon-blue);
-    background: rgba(0,242,254,0.05);
+    background: rgba(255,122,89,0.05);
     transform: translateX(4px);
 }
 

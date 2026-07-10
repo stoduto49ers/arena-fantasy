@@ -308,7 +308,7 @@ const Draft = {
         let blink = true;
         const original = document.title;
         const blinkInterval = setInterval(() => {
-            document.title = blink ? '⚡ SUA VEZ! - Arena Fantasy' : original;
+            document.title = blink ? '⚡ SUA VEZ! - Prancheta' : original;
             blink = !blink;
         }, 800);
         setTimeout(() => {

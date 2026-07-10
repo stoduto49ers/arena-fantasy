@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arena Fantasy - Campeonato Brasileiro</title>
-    <meta name="description" content="O melhor fantasy game do Brasileirão, inspirado nas ligas americanas com draft ao vivo, chat integrado e escalação interativa.">
+    <title>Prancheta - Fantasy do Brasileirão</title>
+    <meta name="description" content="Você é o técnico: fantasy do Brasileirão em formato draft, com sala ao vivo, chat integrado e escalação interativa.">
     <!-- CSS Stylesheet -->
     <link rel="stylesheet" href="styles.css">
     <!-- FontAwesome for some standard UI icons (search, trash, etc.) -->
@@ -18,9 +18,9 @@
     <div id="auth-screen" style="display:none;">
         <div class="auth-card">
             <div class="auth-logo">
-                <div class="logo-badge" style="margin: 0 auto 16px; width:56px; height:56px; font-size:26px;">AF</div>
-                <h1>Arena Fantasy</h1>
-                <p>Campeonato Brasileiro · Formato Draft</p>
+                <div class="logo-badge" style="margin: 0 auto 16px; width:60px; height:60px; border-radius:18px;"><svg viewBox="0 0 76 76" fill="none"><circle cx="26" cy="30" r="6" fill="currentColor"/><circle cx="50" cy="48" r="6" fill="currentColor"/><line x1="30" y1="34" x2="45" y2="44" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-dasharray="1 8"/></svg></div>
+                <h1>Prancheta</h1>
+                <p>Você é o técnico · Fantasy do Brasileirão</p>
             </div>
 
             <!-- Toggle Login / Cadastro -->
@@ -78,8 +78,8 @@
         <header style="display:flex; align-items:center; justify-content:space-between; padding:16px 24px;
             border-bottom:1px solid var(--border-color); background:var(--bg-darker);">
             <div style="display:flex; align-items:center; gap:12px;">
-                <div class="logo-badge" style="width:36px; height:36px; font-size:16px; border-radius:8px;">AF</div>
-                <span style="font-size:18px; font-weight:800; background:var(--grad-primary); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">Arena Fantasy</span>
+                <div class="logo-badge" style="width:36px; height:36px; border-radius:10px;"><svg viewBox="0 0 76 76" fill="none"><circle cx="26" cy="30" r="6" fill="currentColor"/><circle cx="50" cy="48" r="6" fill="currentColor"/><line x1="30" y1="34" x2="45" y2="44" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-dasharray="1 8"/></svg></div>
+                <span style="font-size:18px; font-weight:800; color:#ffffff;">Prancheta</span>
             </div>
             <div style="display:flex; gap:8px; align-items:center;">
                 <span style="font-size:12px; color:var(--text-muted);" id="home-user-email"></span>
@@ -171,7 +171,7 @@
         <!-- --- LEFT NAVIGATION --- -->
         <aside class="left-navigation">
             <div class="logo-container" id="logo-btn">
-                <div class="logo-badge">AF</div>
+                <div class="logo-badge"><svg viewBox="0 0 76 76" fill="none"><circle cx="26" cy="30" r="6" fill="currentColor"/><circle cx="50" cy="48" r="6" fill="currentColor"/><line x1="30" y1="34" x2="45" y2="44" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-dasharray="1 8"/></svg></div>
             </div>
             
             <div class="nav-divider"></div>
@@ -263,8 +263,8 @@
             <div class="user-profile" id="open-profile-btn" title="Meu Perfil" style="cursor:pointer;" onclick="if(window._currentUser && typeof Profile !== 'undefined') Profile.open(window._currentUser);">
                 <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
                     <rect width="48" height="48" fill="#1e2235"/>
-                    <circle cx="24" cy="20" r="8" fill="#00f2fe"/>
-                    <path d="M12 40C12 33.3726 17.3726 28 24 28C30.6274 28 36 33.3726 36 40" fill="#00e676"/>
+                    <circle cx="24" cy="20" r="8" fill="#ff7a59"/>
+                    <path d="M12 40C12 33.3726 17.3726 28 24 28C30.6274 28 36 33.3726 36 40" fill="#35e08c"/>
                 </svg>
             </div>
             <!-- Logout -->
@@ -304,7 +304,7 @@
                     <!-- Banner -->
                     <div class="dashboard-banner">
                         <div class="banner-text">
-                            <h2 id="dashboard-league-name">Arena Fantasy</h2>
+                            <h2 id="dashboard-league-name">Prancheta</h2>
                             <p id="dashboard-league-desc">Carregando...</p>
                         </div>
                         <button class="action-btn primary" id="dashboard-banner-btn" onclick="switchTab('draft-tab')">Entrar no Draft</button>
@@ -868,7 +868,7 @@
                             <div class="cfg-form">
                                 <div class="cfg-field">
                                     <label>Nome da Liga</label>
-                                    <input type="text" id="cfg-league-name" placeholder="Arena Fantasy" maxlength="40">
+                                    <input type="text" id="cfg-league-name" placeholder="Ex: Liga dos Técnicos" maxlength="40">
                                 </div>
                                 <div class="cfg-field">
                                     <label>Temporada</label>
