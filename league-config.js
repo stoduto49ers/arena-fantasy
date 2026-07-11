@@ -217,55 +217,175 @@ const LeagueConfig = {
     },
 
     // --- Gera confrontos da fase regular ---
+    // Round-robin pelo método do círculo: cada time joga
+    // exatamente UMA vez por semana (bye automático se ímpar)
+    buildRoundRobin(ids) {
+        const list = [...ids];
+        if (list.length % 2 !== 0) list.push(null); // bye
+        const n = list.length;
+        const weeks = [];
+        for (let r = 0; r < n - 1; r++) {
+            const pairs = [];
+            for (let i = 0; i < n / 2; i++) {
+                const a = list[i], b = list[n - 1 - i];
+                if (a && b) pairs.push(r % 2 === 0 ? { home: a, away: b } : { home: b, away: a });
+            }
+            weeks.push(pairs);
+            list.splice(1, 0, list.pop()); // rotaciona mantendo o primeiro fixo
+        }
+        return weeks;
+    },
+
     async generateMatchups() {
         const cfg = LeagueConfig.state.config;
-        const groups = LeagueConfig.state.groups;
-        if (groups.length === 0) {
+        const lid = LeagueConfig.leagueId();
+        const isSingleTable = cfg?.format === 'single_table';
+
+        // Pontos corridos: todos numa tabela só (não precisa de grupos)
+        let groups = LeagueConfig.state.groups;
+        if (isSingleTable) {
+            const allIds = LeagueConfig.state.managers.map(m => m.id);
+            if (allIds.length < 2) { LeagueConfig.showToast('A liga precisa de pelo menos 2 managers.', 'error'); return; }
+            groups = [{ group_name: null, manager_ids: allIds }];
+        } else if (!groups.length) {
             LeagueConfig.showToast('Sorteie os grupos primeiro.', 'error');
             return;
         }
 
-        // Deleta confrontos antigos da fase regular (só desta liga)
-        let delQ = window.supabaseClient.from('matchups').delete().eq('phase', 'regular');
-        const lid = LeagueConfig.leagueId();
+        // Limpa TODA a temporada anterior (regular + mata-mata)
+        let delQ = window.supabaseClient.from('matchups').delete()
+            .in('phase', ['regular', 'quartas', 'semifinal', 'final']);
         if (lid) delQ = delQ.eq('league_id', lid);
         await delQ;
 
-        const allMatchups = [];
         const totalWeeks = Math.max(1, (cfg?.total_rounds || 38) - (cfg?.playoff_weeks || 3));
-        let week = 1;
+        const allMatchups = [];
 
-        // Para cada grupo, gera round-robin
         groups.forEach(group => {
-            const ids = group.manager_ids;
-            const rounds = [];
-            // Round robin simples
-            for (let i = 0; i < ids.length; i++) {
-                for (let j = i + 1; j < ids.length; j++) {
-                    rounds.push({ home: ids[i], away: ids[j] });
-                }
-            }
-            // Distribui nas semanas disponíveis (repete se necessário)
-            rounds.forEach((matchup, idx) => {
-                const w = (idx % totalWeeks) + 1;
-                allMatchups.push({
-                    league_id: lid,
-                    week: w,
-                    home_manager_id: matchup.home,
-                    away_manager_id: matchup.away,
-                    phase: 'regular',
-                    group_name: group.group_name,
-                    home_score: 0,
-                    away_score: 0,
-                    is_finished: false
+            const weeks = LeagueConfig.buildRoundRobin(group.manager_ids);
+            weeks.forEach((pairs, wIdx) => {
+                if (wIdx >= totalWeeks) return; // não passa do limite da temporada
+                pairs.forEach(p => {
+                    allMatchups.push({
+                        league_id: lid,
+                        week: wIdx + 1,
+                        home_manager_id: p.home,
+                        away_manager_id: p.away,
+                        phase: 'regular',
+                        group_name: group.group_name,
+                        home_score: 0,
+                        away_score: 0,
+                        is_finished: false
+                    });
                 });
             });
         });
 
         await window.supabaseClient.from('matchups').insert(allMatchups);
-        LeagueConfig.showToast(`${allMatchups.length} confrontos gerados!`, 'success');
+        const weeksUsed = Math.min(totalWeeks, Math.max(...groups.map(g => LeagueConfig.buildRoundRobin(g.manager_ids).length)));
+        LeagueConfig.showToast(`${allMatchups.length} confrontos gerados em ${weeksUsed} semanas!`, 'success');
+        window._currentWeek = null;
     },
 
+    // =========================================
+    // MATA-MATA (playoffs)
+    // Classifica pelos resultados da fase regular e gera a
+    // primeira fase do chaveamento. As fases seguintes são
+    // criadas automaticamente pelo fechamento de rodada.
+    // =========================================
+    async generatePlayoffs() {
+        if (!LeagueConfig.isCommissioner?.() && !confirm('Gerar mata-mata?')) return;
+        const lid = LeagueConfig.leagueId();
+
+        let q = window.supabaseClient.from('matchups').select('*').eq('phase', 'regular');
+        if (lid) q = q.eq('league_id', lid);
+        const { data: regs } = await q;
+        if (!regs?.length) { LeagueConfig.showToast('Gere a fase regular primeiro.', 'error'); return; }
+
+        const open = regs.filter(m => !m.is_finished);
+        if (open.length && !confirm(`Ainda há ${open.length} confrontos da fase regular em aberto.\nGerar o mata-mata mesmo assim? (só jogos finalizados contam na classificação)`)) return;
+
+        const nTeams = parseInt(prompt('Quantos times classificam para o mata-mata? (2, 4 ou 8)', '4'));
+        if (![2, 4, 8].includes(nTeams)) { LeagueConfig.showToast('Valor inválido. Use 2, 4 ou 8.', 'error'); return; }
+
+        // Classificação a partir dos jogos finalizados DESTA liga
+        const table = {};
+        const touch = (id, group) => { if (!table[id]) table[id] = { id, wins: 0, points: 0, group }; };
+        regs.filter(m => m.is_finished).forEach(m => {
+            touch(m.home_manager_id, m.group_name);
+            touch(m.away_manager_id, m.group_name);
+            table[m.home_manager_id].points += parseFloat(m.home_score) || 0;
+            table[m.away_manager_id].points += parseFloat(m.away_score) || 0;
+            const hs = parseFloat(m.home_score) || 0, as = parseFloat(m.away_score) || 0;
+            if (hs >= as) table[m.home_manager_id].wins++;
+            else table[m.away_manager_id].wins++;
+        });
+        const sortFn = (a, b) => (b.wins - a.wins) || (b.points - a.points);
+
+        const cfg = LeagueConfig.state.config;
+        const groups = LeagueConfig.state.groups;
+        let seeds = [];
+
+        if (cfg?.format !== 'single_table' && groups.length > 1 && Number.isInteger(nTeams / groups.length)) {
+            // Top N de cada grupo, com cruzamento entre grupos (A1×B2, B1×A2)
+            const per = nTeams / groups.length;
+            const byGroup = groups.map(g => {
+                const rows = Object.values(table).filter(t =>
+                    g.manager_ids.includes(t.id)).sort(sortFn);
+                return rows.slice(0, per);
+            });
+            for (let g = 0; g < byGroup.length; g += 2) {
+                const A = byGroup[g], B = byGroup[g + 1] || byGroup[g];
+                for (let i = 0; i < per; i++) {
+                    seeds.push(A[i]);              // A1, A2...
+                    seeds.push(B[per - 1 - i]);    // B2, B1... (cruzamento)
+                }
+            }
+            seeds = seeds.filter(Boolean);
+        } else {
+            // Classificação geral: 1×último, 2×penúltimo...
+            const overall = Object.values(table).sort(sortFn).slice(0, nTeams);
+            if (overall.length < nTeams) { LeagueConfig.showToast(`Só ${overall.length} times têm jogos finalizados.`, 'error'); return; }
+            for (let i = 0; i < nTeams / 2; i++) {
+                seeds.push(overall[i]);
+                seeds.push(overall[nTeams - 1 - i]);
+            }
+        }
+
+        if (seeds.length < nTeams) { LeagueConfig.showToast('Classificados insuficientes.', 'error'); return; }
+
+        // Remove mata-mata antigo
+        let delQ = window.supabaseClient.from('matchups').delete()
+            .in('phase', ['quartas', 'semifinal', 'final']);
+        if (lid) delQ = delQ.eq('league_id', lid);
+        await delQ;
+
+        const startWeek = Math.max(...regs.map(m => m.week)) + 1;
+        const phase = nTeams === 8 ? 'quartas' : nTeams === 4 ? 'semifinal' : 'final';
+
+        const rows = [];
+        for (let i = 0; i < seeds.length; i += 2) {
+            rows.push({
+                league_id: lid,
+                week: startWeek,
+                home_manager_id: seeds[i].id,
+                away_manager_id: seeds[i + 1].id,
+                phase,
+                home_score: 0, away_score: 0, is_finished: false
+            });
+        }
+        await window.supabaseClient.from('matchups').insert(rows);
+
+        const nameOf = id => LeagueConfig.state.managers.find(m => m.id === id)?.team_name || '?';
+        const lines = rows.map(r => `• ${nameOf(r.home_manager_id)} × ${nameOf(r.away_manager_id)}`).join('\n');
+        const phaseLbl = phase === 'quartas' ? 'QUARTAS DE FINAL' : phase === 'semifinal' ? 'SEMIFINAIS' : 'GRANDE FINAL';
+        await LeagueConfig.postSystemMessage(`🏟️ MATA-MATA GERADO! ${phaseLbl} (semana ${startWeek}):\n${lines}`);
+
+        LeagueConfig.showToast(`Mata-mata gerado: ${rows.length} confrontos!`, 'success');
+        window._currentWeek = null;
+    },
+
+    // --- Render principal ---
     // --- Render principal ---
     render() {
         LeagueConfig.renderLeagueInfo();
@@ -485,6 +605,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Gerar confrontos
+    // Injeta o botão de mata-mata ao lado do gerador de confrontos
+    const genBtn = document.getElementById('cfg-generate-matchups-btn');
+    if (genBtn && !document.getElementById('cfg-generate-playoffs-btn')) {
+        const pBtn = document.createElement('button');
+        pBtn.id = 'cfg-generate-playoffs-btn';
+        pBtn.className = 'action-btn commissioner-only';
+        pBtn.style.cssText = 'margin-top:16px; margin-left:8px; border-color:rgba(255,215,0,0.4); color:#ffd700;';
+        pBtn.innerHTML = '<i class="fa-solid fa-trophy"></i> Gerar Mata-Mata';
+        pBtn.addEventListener('click', () => LeagueConfig.generatePlayoffs());
+        genBtn.insertAdjacentElement('afterend', pBtn);
+    }
+
     document.getElementById('cfg-generate-matchups-btn')?.addEventListener('click', () => {
         if (confirm('Gerar confrontos da temporada? Os confrontos anteriores serão apagados.')) {
             LeagueConfig.generateMatchups();

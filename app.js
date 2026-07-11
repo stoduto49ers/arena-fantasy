@@ -922,7 +922,7 @@ const Matchup = {
         const myMatch = weekMatches.find(m => m.home_manager_id === user.id || m.away_manager_id === user.id);
 
         const phaseRaw = weekMatches[0]?.phase;
-        const phase = phaseRaw === 'semifinal' ? 'Semifinal' : phaseRaw === 'final' ? 'Final' : `Rodada ${week}`;
+        const phase = phaseRaw === 'quartas' ? 'Quartas de Final' : phaseRaw === 'semifinal' ? 'Semifinal' : phaseRaw === 'final' ? 'GRANDE FINAL' : `Rodada ${week}`;
         if (label) label.textContent = phase;
 
         if (!myMatch) {

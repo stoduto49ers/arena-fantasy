@@ -171,7 +171,7 @@ const Dashboard = {
         const oppName = isHome ? m.away?.team_name : m.home?.team_name;
         const myScore = isHome ? m.home_score : m.away_score;
         const oppScore = isHome ? m.away_score : m.home_score;
-        const phase = m.phase === 'regular' ? `Rodada ${m.week}` : m.phase === 'semifinal' ? 'Semifinal' : 'Final';
+        const phase = m.phase === 'regular' ? `Rodada ${m.week}` : m.phase === 'quartas' ? 'Quartas de Final' : m.phase === 'semifinal' ? 'Semifinal' : 'GRANDE FINAL';
         const group = m.group_name ? ` · Grupo ${m.group_name}` : '';
 
         container.innerHTML = `

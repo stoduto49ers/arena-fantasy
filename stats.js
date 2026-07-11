@@ -685,6 +685,71 @@ const Stats = {
         }
 
         window._currentWeek = null; // invalida cache da semana atual
+
+        // ===== PROGRESSÃO DO MATA-MATA =====
+        const phase = weekMatches[0]?.phase || 'regular';
+
+        if (phase === 'final') {
+            // Temporada encerrada: anuncia o campeão!
+            const f = summary[0];
+            if (f) {
+                const champId = f.hs >= f.as ? f.m.home_manager_id : f.m.away_manager_id;
+                const viceId  = f.hs >= f.as ? f.m.away_manager_id : f.m.home_manager_id;
+                await window.supabaseClient.from('chat_messages').insert({
+                    league_id: lid,
+                    manager_id: window._currentUser.id,
+                    team_name: '🏆 GRANDE FINAL',
+                    avatar_color: '#ffd700',
+                    message: `🎉🏆 TEMPORADA ENCERRADA!\n\nCAMPEÃO: ${nameOf(champId)} (${Math.max(f.hs, f.as).toFixed(1)} pts)\nVice: ${nameOf(viceId)} (${Math.min(f.hs, f.as).toFixed(1)} pts)\n\nParabéns a todos os managers pela temporada!`
+                });
+            }
+        } else if (phase === 'quartas' || phase === 'semifinal') {
+            // Gera a próxima fase com os vencedores (na ordem do chaveamento)
+            const winners = summary
+                .sort((a, b) => a.m.id - b.m.id)
+                .map(({ m, hs, as }) => hs >= as ? m.home_manager_id : m.away_manager_id);
+            const nextPhase = phase === 'quartas' ? 'semifinal' : 'final';
+            const nextRows = [];
+            for (let i = 0; i < winners.length; i += 2) {
+                if (!winners[i + 1]) break;
+                nextRows.push({
+                    league_id: lid,
+                    week: week + 1,
+                    home_manager_id: winners[i],
+                    away_manager_id: winners[i + 1],
+                    phase: nextPhase,
+                    home_score: 0, away_score: 0, is_finished: false
+                });
+            }
+            if (nextRows.length) {
+                await window.supabaseClient.from('matchups').insert(nextRows);
+                const lbl = nextPhase === 'final' ? 'GRANDE FINAL' : 'SEMIFINAIS';
+                const pairs = nextRows.map(r => `• ${nameOf(r.home_manager_id)} × ${nameOf(r.away_manager_id)}`).join('\n');
+                await window.supabaseClient.from('chat_messages').insert({
+                    league_id: lid,
+                    manager_id: window._currentUser.id,
+                    team_name: '🏟️ Chaveamento',
+                    avatar_color: '#ffd700',
+                    message: `${lbl} definida(s) para a semana ${week + 1}:\n${pairs}`
+                });
+            }
+        } else {
+            // Fase regular: se acabou, lembra o comissário do mata-mata
+            let remQ = window.supabaseClient.from('matchups').select('id')
+                .eq('phase', 'regular').eq('is_finished', false).limit(1);
+            if (lid) remQ = remQ.eq('league_id', lid);
+            const { data: remaining } = await remQ;
+            if (!remaining?.length) {
+                await window.supabaseClient.from('chat_messages').insert({
+                    league_id: lid,
+                    manager_id: window._currentUser.id,
+                    team_name: '📢 Sistema',
+                    avatar_color: '#00f2fe',
+                    message: 'FASE REGULAR ENCERRADA! Comissário: gere o mata-mata em Configurações → Gerar Mata-Mata.'
+                });
+            }
+        }
+
         Stats.toast(`Rodada ${week} fechada! ${weekMatches.length} confrontos pontuados.`);
         if (typeof Dashboard !== 'undefined' && window._currentUser) Dashboard.init(window._currentUser);
     },
