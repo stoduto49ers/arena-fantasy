@@ -102,6 +102,7 @@ function initApp(user) {
     setupChat();
     setupMarket();
     setupLineup();
+    populateClubFilters();
 
     if (user && window.supabaseClient) {
         window.supabaseClient
@@ -641,6 +642,21 @@ function renderMarket() {
         container.appendChild(row);
     });
 }
+
+// Preenche os filtros de clube dinamicamente a partir da base de jogadores
+// (assim funcionam mesmo quando a base é regenerada com siglas do Cartola)
+function populateClubFilters() {
+    const clubs = [...new Set(PLAYERS_DATABASE.map(p => p.club))].sort();
+    ['market-club-filter', 'draft-club-filter'].forEach(id => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        const current = sel.value;
+        sel.innerHTML = '<option value="TODOS">Todos os Clubes</option>'
+            + clubs.map(c => `<option value="${c}">${c}</option>`).join('');
+        if ([...sel.options].some(o => o.value === current)) sel.value = current;
+    });
+}
+window.populateClubFilters = populateClubFilters;
 
 // Atalho: mercado → painel waiver com jogador pré-buscado
 function goToWaiver(playerName) {
