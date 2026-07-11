@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prancheta - Fantasy do Brasileirão</title>
+    <title>Prancheta FF — Seu Fantasy do Brasileirão</title>
+    <link rel="icon" href="data:,">
     <meta name="description" content="Você é o técnico: fantasy do Brasileirão em formato draft, com sala ao vivo, chat integrado e escalação interativa.">
     <!-- CSS Stylesheet -->
     <link rel="stylesheet" href="styles.css">
@@ -19,8 +20,8 @@
         <div class="auth-card">
             <div class="auth-logo">
                 <div class="logo-badge" style="margin: 0 auto 16px; width:60px; height:60px; border-radius:18px;"><svg viewBox="0 0 76 76" fill="none"><circle cx="26" cy="30" r="6" fill="currentColor"/><circle cx="50" cy="48" r="6" fill="currentColor"/><line x1="30" y1="34" x2="45" y2="44" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-dasharray="1 8"/></svg></div>
-                <h1>Prancheta</h1>
-                <p>Você é o técnico · Fantasy do Brasileirão</p>
+                <h1>Prancheta FF</h1>
+                <p>Seu fantasy do Brasileirão</p>
             </div>
 
             <!-- Toggle Login / Cadastro -->
@@ -79,7 +80,7 @@
             border-bottom:1px solid var(--border-color); background:var(--bg-darker);">
             <div style="display:flex; align-items:center; gap:12px;">
                 <div class="logo-badge" style="width:36px; height:36px; border-radius:10px;"><svg viewBox="0 0 76 76" fill="none"><circle cx="26" cy="30" r="6" fill="currentColor"/><circle cx="50" cy="48" r="6" fill="currentColor"/><line x1="30" y1="34" x2="45" y2="44" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-dasharray="1 8"/></svg></div>
-                <span style="font-size:18px; font-weight:800; color:#ffffff;">Prancheta</span>
+                <span style="font-size:18px; font-weight:800; color:#ffffff;">Prancheta FF</span>
             </div>
             <div style="display:flex; gap:8px; align-items:center;">
                 <span style="font-size:12px; color:var(--text-muted);" id="home-user-email"></span>
@@ -304,7 +305,7 @@
                     <!-- Banner -->
                     <div class="dashboard-banner">
                         <div class="banner-text">
-                            <h2 id="dashboard-league-name">Prancheta</h2>
+                            <h2 id="dashboard-league-name">Prancheta FF</h2>
                             <p id="dashboard-league-desc">Carregando...</p>
                         </div>
                         <button class="action-btn primary" id="dashboard-banner-btn" onclick="switchTab('draft-tab')">Entrar no Draft</button>
@@ -397,6 +398,8 @@
                         <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:12px;">
                             <label style="font-size:13px; color:var(--text-secondary);">Tempo por pick:</label>
                             <select id="commissioner-timer-select" style="background:rgba(255,255,255,0.06); border:1px solid var(--border-color); color:var(--text-primary); border-radius:8px; padding:8px 12px; font-family:var(--font-primary); cursor:pointer;">
+                                <option value="0.084">5 minutos (teste)</option>
+                                <option value="0.5">30 minutos</option>
                                 <option value="1">1 hora</option>
                                 <option value="2">2 horas</option>
                                 <option value="4">4 horas</option>
@@ -887,7 +890,9 @@
                                 <div class="cfg-field commissioner-only">
                                     <label>Tempo por Pick</label>
                                     <select id="cfg-draft-timer">
-                                        <option value="1">1 hora</option>
+                                        <option value="0.084">5 minutos (teste)</option>
+                                <option value="0.5">30 minutos</option>
+                                <option value="1">1 hora</option>
                                         <option value="2">2 horas</option>
                                         <option value="4">4 horas</option>
                                         <option value="8" selected>8 horas</option>

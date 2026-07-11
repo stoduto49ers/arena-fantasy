@@ -1,5 +1,5 @@
 // =============================================
-// ARENA FANTASY - Slow Draft Engine
+// PRANCHETA FF - Slow Draft Engine
 // Formato: Snake Draft, 16 times, 18 rodadas
 // =============================================
 
@@ -181,7 +181,7 @@ const Draft = {
         // Avança o índice
         const nextIdx = idx + 1;
         const isFinished = nextIdx >= Draft.TOTAL_ROUNDS * Draft.state.managers.length;
-        const timerHours = Draft.state.timerHours;
+        const timerHours = Draft.getTimerHours();
         const expiresAt = new Date(Date.now() + timerHours * 3600 * 1000).toISOString();
 
         await window.supabaseClient
@@ -218,6 +218,73 @@ const Draft = {
         await Draft.makePick(best);
     },
 
+    // --- Auto-pick para manager AUSENTE (roda no navegador do comissário) ---
+    // Sem isso, um amigo offline travaria o draft para sempre.
+    async autoPickForAbsent() {
+        // Grace de 20s: dá chance do próprio jogador agir primeiro
+        await new Promise(r => setTimeout(r, 20000));
+
+        // Recarrega o estado direto do banco para evitar corrida
+        await Draft.loadDraftState();
+        await Draft.loadPicks();
+        const st = Draft.state.draftState;
+        if (!st || st.is_finished) return;
+
+        const exp = st.timer_expires_at;
+        if (!exp || (new Date(exp) - new Date()) > 0) { Draft.startTimer(); return; } // alguém já pickou
+
+        const slot = Draft.getCurrentSlot();
+        if (!slot) return;
+        if (slot.managerId === window._currentUser?.id) { Draft.autoPickByAdp(); return; }
+        if (Draft.isBot(slot.managerId)) return; // bots têm fluxo próprio
+
+        const available = Draft.getAvailablePlayers()
+            .sort((a, b) => b.projPoints - a.projPoints);
+        const player = available[0];
+        if (!player) return;
+
+        const idx = st.current_pick_index;
+        const { error } = await window.supabaseClient.from('draft_picks').insert({
+            league_id: Draft.leagueId(),
+            round: slot.round,
+            pick_number: slot.pickNumber,
+            manager_id: slot.managerId,
+            player_id: player.id,
+            player_name: player.name,
+            player_position: player.position,
+            player_club: player.club,
+        });
+        if (error) {
+            console.warn('Auto-pick do ausente bloqueado (rode a migration_v4.sql):', error.message);
+            return;
+        }
+
+        const nextIdx = idx + 1;
+        const isFinished = nextIdx >= Draft.TOTAL_ROUNDS * Draft.state.managers.length;
+        const timerHours = Draft.getTimerHours();
+        const expiresAt = new Date(Date.now() + timerHours * 3600 * 1000).toISOString();
+
+        await window.supabaseClient.from('draft_state').update({
+            current_pick_index: nextIdx,
+            is_finished: isFinished,
+            timer_expires_at: isFinished ? null : expiresAt,
+            updated_at: new Date().toISOString()
+        }).eq('id', Draft.stateRowId());
+
+        const mgr = Draft.state.managers.find(m => m.id === slot.managerId);
+        await window.supabaseClient.from('chat_messages').insert({
+            league_id: Draft.leagueId(),
+            manager_id: window._currentUser.id,
+            team_name: '⏰ Auto-Pick',
+            avatar_color: '#ff9f43',
+            message: `Tempo esgotado! ${mgr?.team_name || 'Manager ausente'} recebeu ${player.name} (${player.position}) por auto-pick.`
+        });
+
+        await Draft.loadPicks();
+        await Draft.loadDraftState();
+        Draft.render();
+    },
+
     // --- Verifica se jogador já foi draftado ---
     isPlayerDrafted(playerId) {
         return Draft.state.picks.some(p => p.player_id === playerId);
@@ -249,6 +316,7 @@ const Draft = {
                 clearInterval(Draft.state.timerInterval);
                 timerEl.textContent = '00:00:00';
                 if (Draft.isMyTurn()) Draft.autoPickByAdp();
+                else if (Draft.isCommissioner()) Draft.autoPickForAbsent();
                 return;
             }
             const h = Math.floor(diff / 3600000);
@@ -308,7 +376,7 @@ const Draft = {
         let blink = true;
         const original = document.title;
         const blinkInterval = setInterval(() => {
-            document.title = blink ? '⚡ SUA VEZ! - Prancheta' : original;
+            document.title = blink ? '⚡ SUA VEZ! - Prancheta FF' : original;
             blink = !blink;
         }, 800);
         setTimeout(() => {
@@ -697,13 +765,21 @@ const Draft = {
         return Draft.BOT_IDS.includes(managerId);
     },
 
+    // Tempo por pick: SEMPRE do banco (draft_state.timer_hours),
+    // para todos os navegadores usarem o mesmo valor configurado
+    getTimerHours() {
+        const fromDb = parseFloat(Draft.state.draftState?.timer_hours);
+        if (fromDb && fromDb > 0) return fromDb;
+        return Draft.state.timerHours || 8;
+    },
+
     // Pick feita por um bot
     async makeBotPick(botId, player) {
         const slot = Draft.getCurrentSlot();
         if (!slot || slot.managerId !== botId) return false;
 
         const idx = Draft.state.draftState.current_pick_index;
-        const timerHours = Draft.state.timerHours || 8;
+        const timerHours = Draft.getTimerHours();
 
         const { error } = await window.supabaseClient.from('draft_picks').insert({
             league_id: Draft.leagueId(),
@@ -867,6 +943,7 @@ const Draft = {
                 current_pick_index: 0,
                 is_finished: false,
                 draft_status: 'active',
+                timer_hours: timerHours,
                 timer_expires_at: expiresAt,
                 updated_at: new Date().toISOString()
             })
@@ -889,8 +966,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Botão comissário iniciar draft
     document.getElementById('commissioner-start-btn')?.addEventListener('click', () => {
-        const hours = parseInt(document.getElementById('commissioner-timer-select')?.value || '8');
-        if (confirm(`Iniciar o draft com ${hours}h por pick?`)) {
+        const sel = document.getElementById('commissioner-timer-select');
+        const hours = parseFloat(sel?.value || '8');
+        const label = sel?.selectedOptions?.[0]?.text || `${hours}h`;
+        if (confirm(`Iniciar o draft com ${label} por pick?`)) {
             Draft.commissionerStart(hours);
         }
     });
