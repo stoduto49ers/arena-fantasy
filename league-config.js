@@ -74,7 +74,33 @@ const LeagueConfig = {
     },
 
     // --- Salva uma seção da config ---
+    // Copia o link de convite da liga para a área de transferência
+    async copyInviteLink() {
+        const lid = LeagueConfig.leagueId();
+        if (!lid) { LeagueConfig.showToast('Entre em uma liga primeiro.', 'error'); return; }
+        const link = `${window.location.origin}/?join=${lid}`;
+        try {
+            await navigator.clipboard.writeText(link);
+            LeagueConfig.showToast('Link de convite copiado! Cole no grupo do WhatsApp. 📋', 'success');
+        } catch (e) {
+            prompt('Copie o link de convite:', link);
+        }
+    },
+
+    renderInviteButton() {
+        const anchor = document.getElementById('cfg-pending-requests');
+        if (!anchor || document.getElementById('cfg-invite-btn')) return;
+        const btn = document.createElement('button');
+        btn.id = 'cfg-invite-btn';
+        btn.className = 'action-btn primary commissioner-only';
+        btn.style.cssText = 'margin-bottom:12px; width:100%; justify-content:center;';
+        btn.innerHTML = '<i class="fa-solid fa-link"></i> Copiar Link de Convite da Liga';
+        btn.addEventListener('click', () => LeagueConfig.copyInviteLink());
+        anchor.parentElement.insertBefore(btn, anchor);
+    },
+
     async loadPendingRequests() {
+        LeagueConfig.renderInviteButton();
         const container = document.getElementById('cfg-pending-requests');
         if (!container) return;
 

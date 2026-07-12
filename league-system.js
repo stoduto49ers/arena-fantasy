@@ -10,6 +10,80 @@ const LeagueSystem = {
         LeagueSystem.state.user = user;
         window._currentUser = user;
         await LeagueSystem.loadAll();
+
+        // Convite pendente? (link ?join=... aberto antes ou depois do login)
+        const pendingJoin = localStorage.getItem('prancheta_pending_join');
+        if (pendingJoin) {
+            await LeagueSystem.processInvite(pendingJoin);
+            return;
+        }
+        LeagueSystem.showHome();
+    },
+
+    // Entra na liga automaticamente via link de convite
+    async processInvite(leagueId) {
+        localStorage.removeItem('prancheta_pending_join');
+        const uid = LeagueSystem.state.user.id;
+        const league = LeagueSystem.state.allLeagues.find(l => l.id === leagueId);
+
+        if (!league) {
+            LeagueSystem.toast('Convite inválido ou liga não existe mais.', 'error');
+            LeagueSystem.showHome();
+            return;
+        }
+
+        const existing = LeagueSystem.state.myLeagues.find(m => m.league_id === leagueId);
+        if (existing?.status === 'approved') {
+            LeagueSystem.toast(`Você já é membro de "${league.name}"!`, 'success');
+            LeagueSystem.showHome();
+            return;
+        }
+
+        // Limite de vagas
+        const { data: members } = await window.supabaseClient
+            .from('league_members').select('id')
+            .eq('league_id', leagueId).eq('status', 'approved');
+        if ((members?.length || 0) >= (league.max_teams || 16)) {
+            LeagueSystem.toast(`A liga "${league.name}" está cheia.`, 'error');
+            LeagueSystem.showHome();
+            return;
+        }
+
+        // Convite = entrada direta, sem aprovação manual
+        let error;
+        if (existing) {
+            ({ error } = await window.supabaseClient.from('league_members')
+                .update({ status: 'approved', approved_at: new Date().toISOString() })
+                .eq('id', existing.id));
+        } else {
+            ({ error } = await window.supabaseClient.from('league_members').insert({
+                league_id: leagueId,
+                manager_id: uid,
+                status: 'approved',
+                approved_at: new Date().toISOString()
+            }));
+        }
+
+        if (error) {
+            console.error('processInvite:', error);
+            LeagueSystem.toast('Erro ao entrar pela liga. Tente pela busca.', 'error');
+            LeagueSystem.showHome();
+            return;
+        }
+
+        // Avisa no chat da liga
+        const { data: me } = await window.supabaseClient
+            .from('managers').select('team_name').eq('id', uid).single();
+        await window.supabaseClient.from('chat_messages').insert({
+            league_id: leagueId,
+            manager_id: uid,
+            team_name: '👋 Novo Manager',
+            avatar_color: '#00ff87',
+            message: `${me?.team_name || 'Um novo manager'} entrou na liga pelo link de convite!`
+        });
+
+        LeagueSystem.toast(`Bem-vindo à "${league.name}"! 🎉`, 'success');
+        await LeagueSystem.loadAll();
         LeagueSystem.showHome();
     },
 
@@ -242,3 +316,17 @@ LeagueSystem.showHomeTab = function(tab) {
     if (tab === 'jogos' && typeof Jogos !== 'undefined') Jogos.load();
     if (tab === 'noticias' && typeof News !== 'undefined') News.load();
 };
+
+
+// Captura o convite da URL imediatamente (sobrevive ao fluxo de login/cadastro)
+(function captureInviteParam() {
+    try {
+        const params = new URLSearchParams(window.location.search);
+        const joinId = params.get('join');
+        if (joinId) {
+            localStorage.setItem('prancheta_pending_join', joinId);
+            // Limpa a URL para não reprocessar em refresh
+            window.history.replaceState({}, '', window.location.pathname);
+        }
+    } catch (e) { /* silencioso */ }
+})();
